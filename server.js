@@ -8,6 +8,7 @@ const { validate: isUuid } = require("uuid");
 require("dotenv").config();
 const rateLimit = require("express-rate-limit");
 const openpgp = require("openpgp");
+const path = require("path");
 
 // Инициализация Express и HTTP-сервера
 const app = express();
@@ -45,10 +46,6 @@ const apiLimiter = rateLimit({
   max: 100, // максимум 100 запросов за 15 минут
 });
 app.use("/messages", apiLimiter);
-// Обработка корневого маршрута
-app.get("/", (req, res) => {
-  res.send("Добро пожаловать в secure-chat!");
-});
 // ================================
 // Вспомогательные функции
 // ================================
@@ -187,6 +184,15 @@ app.get("/messages", async (req, res) => {
     console.error("Ошибка получения сообщений:", err);
     res.status(500).send("Не удалось получить сообщения");
   }
+});
+// ================================
+// Раздача статических файлов (React-клиента)
+// ================================
+// Раздача статических файлов из папки build
+app.use(express.static(path.join(__dirname, "client", "build")));
+// Обработка всех GET-запросов, которые не совпадают с другими маршрутами
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "build", "index.html"));
 });
 // ================================
 // Запуск HTTP-сервера
