@@ -45,6 +45,10 @@ const apiLimiter = rateLimit({
   max: 100, // максимум 100 запросов за 15 минут
 });
 app.use("/messages", apiLimiter);
+// Обработка корневого маршрута
+app.get("/", (req, res) => {
+  res.send("Добро пожаловать в secure-chat!");
+});
 // ================================
 // Вспомогательные функции
 // ================================
@@ -138,14 +142,16 @@ wss.on("connection", (ws) => {
           encryptedMessage,
           timestamp,
         });
-       // Сохраняем сообщение в Redis (список сообщений) и публикуем в канал "chat"
-       await redisPub.rPush("chat:messages", messageData);
-       redisPub.publish("chat", messageData);
-     }
-     // Добавить обработку других типов сообщений, например, video_signal для видеозвонков
+        // Сохраняем сообщение в Redis (список сообщений) и публикуем в канал "chat"
+        await redisPub.rPush("chat:messages", messageData);
+        redisPub.publish("chat", messageData);
+      }
+      // Добавить обработку других типов сообщений, например, video_signal для видеозвонков
     } catch (err) {
       console.error("Ошибка обработки сообщения:", err.message);
-      ws.send(JSON.stringify({ type: "error", message: "Ошибка обработки сообщения" }));
+      ws.send(
+        JSON.stringify({ type: "error", message: "Ошибка обработки сообщения" })
+      );
     }
   });
   ws.on("close", () => {
