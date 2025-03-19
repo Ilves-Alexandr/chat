@@ -111,7 +111,8 @@ const Chat = () => {
         // 3. Устанавливаем WebSocket‑соединение (если ещё не установлено)
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
-          wsRef.current = new WebSocket("ws://localhost:8080");
+          const wsUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8080'
+          wsRef.current = new WebSocket(wsUrl);
         }
         wsRef.current.onopen = () => {
           console.log("WebSocket подключен");
