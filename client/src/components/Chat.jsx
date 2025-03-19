@@ -86,7 +86,7 @@ const Chat = () => {
             const protectedKey = privateKey;
             try {
               privateKey = await decryptPrivateKey(protectedKey, passphrase);
-              console.log("Приватный ключ дешифрован из хранилища");
+              console.log("Приватный ключ дешифрован из хранилища", privateKey);
             } catch (err) {
               console.error("Ошибка дешифровки приватного ключа:", err);
               toast.error("Ошибка дешифровки приватного ключа");
@@ -100,7 +100,7 @@ const Chat = () => {
             armoredKey: privateKey,
           });
           publicKey = extractedKey.toPublic().armor();
-          console.log("Приватный ключ загружен из хранилища");
+          console.log("Приватный ключ загружен из хранилища", privateKey);
           toast.success("Приватный ключ загружен из хранилища");
         }
 
@@ -111,8 +111,9 @@ const Chat = () => {
         // 3. Устанавливаем WebSocket‑соединение (если ещё не установлено)
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
-          const wsUrl = process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080";
-          console.dir(`wsUrl::${wsUrl}`);
+          const wsUrl =
+            process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080";
+          console.log(`wsUrl::${wsUrl}`);
           wsRef.current = new WebSocket(wsUrl);
         }
         wsRef.current.onopen = () => {
@@ -255,6 +256,8 @@ const Chat = () => {
       keys.recipientPublicKey
     );
     try {
+      // Логируем сообщение до шифрования
+      console.log("Сообщение для шифрования:", message);
       // 5. Шифруем сообщение с использованием публичного ключа получателя
       const encryptedMessage = await encryptMessage(
         message,
@@ -360,12 +363,18 @@ const Chat = () => {
         />
         {/* Если нужно отправлять файлы */}
         <input type="file" onChange={handleFileChange} className="file-input" />
-        <button onClick={() => sendMessage(input)} disabled={chatType === "private" && !keys.recipientPublicKey}>
+        <button
+          onClick={() => sendMessage(input)}
+          disabled={chatType === "private" && !keys.recipientPublicKey}
+        >
           Отправить
         </button>
       </div>
-       {/* Компонент видеозвонков */}
-       <VideoChat ws={wsRef.current} clientId={localStorage.getItem("clientId")} />
+      {/* Компонент видеозвонков */}
+      <VideoChat
+        ws={wsRef.current}
+        clientId={localStorage.getItem("clientId")}
+      />
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
