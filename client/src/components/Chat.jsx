@@ -112,6 +112,7 @@ const Chat = () => {
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
           const wsUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8080'
+          console.dir(`wsUrl::${wsUrl}`);
           wsRef.current = new WebSocket(wsUrl);
         }
         wsRef.current.onopen = () => {
