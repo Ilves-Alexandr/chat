@@ -84,6 +84,15 @@ const Chat = () => {
           // иначе – не защищён (в целях совместимости)
           if (privateKey.includes(":")) {
             const protectedKey = privateKey;
+            const parts = protectedKey.split(":");
+            console.log("Protected key parts:", parts);
+            if (parts.length !== 3) {
+              console.error(
+                "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
+              );
+              toast.error("Неверный формат зашифрованного ключа");
+              return;
+            }
             try {
               privateKey = await decryptPrivateKey(protectedKey, passphrase);
               console.log("Приватный ключ дешифрован из хранилища", privateKey);
@@ -100,6 +109,7 @@ const Chat = () => {
             armoredKey: privateKey,
           });
           publicKey = extractedKey.toPublic().armor();
+          console.log("Извлечённый публичный ключ:", publicKey);
           console.log("Приватный ключ загружен из хранилища", privateKey);
           toast.success("Приватный ключ загружен из хранилища");
         }
