@@ -65,9 +65,7 @@ const Chat = () => {
         console.log("Stored key:", privateKey);
         let publicKey;
         // Запрашиваем секретную фразу у пользователя
-        const passphrase = prompt(
-          "Введите секретную фразу для защиты ваших ключей:"
-        );
+        const passphrase =  'testpass'
         if (!privateKey) {
           // Если ключ не найден – генерируем новую пару ключей
           const generatedKeys = await generateKeys();
@@ -122,7 +120,7 @@ const Chat = () => {
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
           const wsUrl =
-            process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080";
+            process.env.REACT_APP_WEBSOCKET_URL /*|| "ws://localhost:8080"*/;
           console.log(`wsUrl::${wsUrl}`);
           wsRef.current = new WebSocket(wsUrl);
         }
