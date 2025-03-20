@@ -1,4 +1,3 @@
-// Chat.jsx
 import React, { useEffect, useState, useRef } from "react";
 import * as openpgp from "openpgp";
 import { v4 as uuidv4 } from "uuid";
@@ -13,7 +12,7 @@ import {
   encryptPrivateKey,
   decryptPrivateKey,
 } from "../utils/cryptoProtection";
-import { sha256 } from "js-sha256"; // Пока не используется – можно удалить, если не нужно
+import { sha256 } from "js-sha256"; // Пока не используется
 import VideoChat from "./VideoChat";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -36,13 +35,28 @@ const Chat = () => {
   const wsRef = useRef(null);
 
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
-  const recoverAccount = () => {
-    localStorage.removeItem("clientId");
-    // Здесь можно добавить очистку IndexedDB (например, удалить хранилище "chatAppDB")
-    // Если используется библиотека idb, её можно вызвать для удаления базы данных.
-    toast.info(
-      "Аккаунт сброшен. Перезагрузите страницу для повторной генерации ключей."
-    );
+  const recoverAccount = async () => {
+    try {
+      const storedKey = await retrievePrivateKey();
+      if (!storedKey) {
+        toast.error("Приватный ключ не найден.");
+        return;
+      }
+      const passphrase = "testpass"
+      const decryptedKey = await decryptPrivateKey(storedKey, passphrase);
+      privateKeyRef.current = decryptedKey;
+      const extractedKey = await openpgp.readKey({ armoredKey: decryptedKey });
+      const publicKey = extractedKey.toPublic().armor();
+      setKeys((prev) => ({ ...prev, publicKey }));
+      toast.success("Аккаунт успешно восстановлен.");
+      // localStorage.removeItem("clientId");
+      // toast.info(
+      //   "Аккаунт сброшен. Перезагрузите страницу для повторной генерации ключей."
+      // );
+    } catch (err) {
+      console.error("Ошибка восстановления аккаунта:", err);
+      toast.error("Ошибка восстановления аккаунта");
+    }
   };
 
   useEffect(() => {
@@ -65,7 +79,7 @@ const Chat = () => {
         console.log("Stored key:", privateKey);
         let publicKey;
         // Запрашиваем секретную фразу у пользователя
-        const passphrase =  'testpass'
+        const passphrase = "testpass";
         if (!privateKey) {
           // Если ключ не найден – генерируем новую пару ключей
           const generatedKeys = await generateKeys();
@@ -120,7 +134,7 @@ const Chat = () => {
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
           const wsUrl =
-            process.env.REACT_APP_WEBSOCKET_URL /*|| "ws://localhost:8080"*/;
+            process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080"
           console.log(`wsUrl::${wsUrl}`);
           wsRef.current = new WebSocket(wsUrl);
         }
