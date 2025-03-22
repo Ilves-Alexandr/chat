@@ -34,6 +34,58 @@ const Chat = () => {
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
 
+  // Функция восстановления (очистки) аккаунта
+  const clearUserData = async () => {
+    // 1. Удаляем clientId из localStorage
+    localStorage.removeItem("clientId");
+    toast.info("LocalStorage очищен");
+
+    // 2. Удаляем базу IndexedDB (удаляет всю базу данных)
+    const deleteRequest = indexedDB.deleteDatabase("chatAppDB");
+    deleteRequest.onsuccess = () => {
+      console.log("IndexedDB 'chatAppDB' удалена");
+      toast.info("IndexedDB очищена");
+    };
+    deleteRequest.onerror = (e) => {
+      console.error("Ошибка при удалении IndexedDB:", e.target.error);
+      toast.error("Ошибка при удалении IndexedDB");
+    };
+
+    // 3. Если на сервере реализован API для удаления пользовательских данных (например, из Redis),
+    // то можно вызвать его здесь:
+    try {
+      // Например, предполагается эндпоинт DELETE /api/clearUserData?clientId=...
+      const currentClientId =
+        localStorage.getItem("clientId") || "текущий clientId";
+      const response = await fetch(
+        `/api/clearUserData?clientId=${currentClientId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (response.ok) {
+        console.log("Данные пользователя удалены на сервере");
+        toast.success("Данные пользователя удалены на сервере");
+      } else {
+        console.error("Ошибка удаления данных на сервере");
+        toast.error("Ошибка удаления данных на сервере");
+      }
+    } catch (err) {
+      console.error("Ошибка вызова API для очистки данных:", err);
+      toast.error("Ошибка очистки данных на сервере");
+    }
+
+    // 4. Сброс локальных состояний
+    setMessages([]);
+    setKeys({ publicKey: null, recipientPublicKey: null });
+    setInput("");
+    setFile(null);
+
+    // 5. Рекомендуем перезагрузить страницу для полной генерации новых данных
+    toast.info(
+      "Данные пользователя очищены. Перезагрузите страницу для повторной генерации ключей."
+    );
+  };
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
     try {
@@ -42,7 +94,7 @@ const Chat = () => {
         toast.error("Приватный ключ не найден.");
         return;
       }
-      const passphrase = "testpass"
+      const passphrase = "testpass";
       const decryptedKey = await decryptPrivateKey(storedKey, passphrase);
       privateKeyRef.current = decryptedKey;
       const extractedKey = await openpgp.readKey({ armoredKey: decryptedKey });
@@ -134,7 +186,7 @@ const Chat = () => {
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
           const wsUrl =
-            process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080"
+            process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8080";
           console.log(`wsUrl::${wsUrl}`);
           wsRef.current = new WebSocket(wsUrl);
         }
