@@ -1,6 +1,6 @@
 // Импорт необходимых модулей
 const express = require("express");
-const http = require("http");
+const https = require("https");
 const WebSocket = require("ws");
 const { createClient } = require("redis");
 const { v4: uuidv4 } = require("uuid");
@@ -12,7 +12,7 @@ const path = require("path");
 
 // Инициализация Express и HTTP-сервера
 const app = express();
-const server = http.createServer(app);
+const server = https.createServer(app);
 const wss = new WebSocket.Server({ server });
 // ================================
 // Redis: подключение и конфигурация
