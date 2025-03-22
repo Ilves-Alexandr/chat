@@ -51,18 +51,14 @@ const Chat = () => {
       toast.error("Ошибка при удалении IndexedDB");
     };
 
-    // 3. Если на сервере реализован API для удаления пользовательских данных (например, из Redis),
-    // то можно вызвать его здесь:
+    // 3. Вызов API для удаления пользовательских данных из Redis
+
     try {
-      // Например, предполагается эндпоинт DELETE /api/clearUserData?clientId=...
-      const currentClientId =
-        localStorage.getItem("clientId") || "текущий clientId";
-      const response = await fetch(
-        `/api/clearUserData?clientId=${currentClientId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      // Эндпоинт DELETE /api/clearUserData?clientId=...
+      const сlientId = localStorage.getItem("clientId") || "текущий clientId";
+      const response = await fetch(`/api/clearUserData?clientId=${сlientId}`, {
+        method: "DELETE",
+      });
       if (response.ok) {
         console.log("Данные пользователя удалены на сервере");
         toast.success("Данные пользователя удалены на сервере");
@@ -383,6 +379,9 @@ const Chat = () => {
   return (
     <div className="chat-container">
       <h1>Anonymous Chat</h1>
+      <button onClick={clearUserData} className="clear-btn">
+        Очистить данные аккаунта
+      </button>
       {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
       <button onClick={recoverAccount} className="recovery-btn">
         Восстановить аккаунт
