@@ -1,6 +1,6 @@
 // Импорт необходимых модулей
 const express = require("express");
-const https = require("https");
+const http = require("http");
 const WebSocket = require("ws");
 const { createClient } = require("redis");
 const { v4: uuidv4 } = require("uuid");
@@ -12,7 +12,7 @@ const path = require("path");
 
 // Инициализация Express и HTTP-сервера
 const app = express();
-const server = https.createServer(app);
+const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 // ================================
 // Redis: подключение и конфигурация
@@ -229,7 +229,7 @@ app.delete("/api/clearUserData", async (req, res) => {
 // Запуск HTTP-сервера
 // ================================
 const PORT = process.env.PORT || 8080;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || "http://localhost";
 server.listen(PORT, () => {
   console.log(`Сервер работает на ${HOST}:${PORT}`);
 });
