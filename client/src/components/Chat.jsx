@@ -256,12 +256,12 @@ const Chat = () => {
         };
         // 5. Обработка ошибок и закрытия соединения
         wsRef.current.onerror = (err) => {
-          console.error("WebSocket error:", err);
+          console.error("WebSocket error:", err, err.message);
           toast.error("Ошибка WebSocket-соединения");
         };
 
         wsRef.current.onclose = (event) => {
-          console.log("WebSocket connection closed", event);
+          console.log("WebSocket connection closed", event, event.message);
           wsRef.current = null;
           toast.info("Соединение с сервером закрыто");
         };
