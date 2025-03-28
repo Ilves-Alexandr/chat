@@ -84,13 +84,14 @@ export const retrievePrivateKey = async (passphrase) => {
     const transaction = db.transaction("keys", "readonly"); // Открываем транзакцию только для чтения
     const store = transaction.objectStore("keys");
     const request = store.get("privateKey"); // Достаём ключ по ID
-
+    console.log("Попытка загрузить приватный ключ из IndexedDB...");
     request.onsuccess = async () => {
       if (!request.result) {
+        console.error("Приватный ключ не найден в IndexedDB.");
         reject("Приватный ключ не найден");
         return;
       }
-
+      console.log("Найден зашифрованный ключ:", request.result.key);
       try {
         const decryptedPrivateKey = await openpgp.decryptKey({
           privateKey: await openpgp.readPrivateKey({
@@ -98,13 +99,17 @@ export const retrievePrivateKey = async (passphrase) => {
           }),
           passphrase,
         });
+        console.log("Дешифрованный приватный ключ успешно получен.");
+        console.log("retrievePrivateKey - Расшифрованный ключ:", decryptedPrivateKey.armor());
         resolve(decryptedPrivateKey.armor());
       } catch (error) {
+        console.error("Ошибка дешифровки приватного ключа. Возможно, неверная passphrase?", error);
         reject("Ошибка расшифровки приватного ключа. Неверный passphrase?");
       }
     };
 
     request.onerror = (event) => {
+      console.error("Ошибка при доступе к IndexedDB:", event.target.error);
       reject(event.target.error);
     };
   });

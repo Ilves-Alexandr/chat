@@ -74,13 +74,13 @@ const deriveKey = async (passphrase, salt) => {
  * @returns {Promise<string>} – зашифрованный текст в формате Base64, включающий iv.
  */
 export const encryptPrivateKey = async (plainText, passphrase) => {
-  console.log(`plainText::${plainText}`);
-  console.log(`passphrase переданный в функции encryptPrivateKey::${passphrase}`);
+  console.log(`encryptPrivateKey - plainText: ${plainText}`);
+  console.log(`encryptPrivateKey - passphrase: ${passphrase}`);
   // Генерируем случайную соль (16 байт) и IV (12 байт)
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  console.log(`encryptPrivateKey_func_salt::`, salt);
-  console.log(`encryptPrivateKey_func_iv::`, iv);
+  console.log("encryptPrivateKey - salt:", salt);
+  console.log("encryptPrivateKey - iv:", iv);
   const key = await deriveKey(passphrase, salt);
   const encryptedBuffer = await window.crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
@@ -88,6 +88,7 @@ export const encryptPrivateKey = async (plainText, passphrase) => {
     strToUint8Array(plainText)
   );
   // Кодируем соль, iv и зашифрованные данные в Base64 и объединяем через разделитель
+  console.log(`encryptPrivateKey - Result: ${arrayBufferToBase64(salt)}:${arrayBufferToBase64(iv)}:${arrayBufferToBase64(encryptedBuffer)}`);
   return `${arrayBufferToBase64(salt)}:${arrayBufferToBase64(
     iv
   )}:${arrayBufferToBase64(encryptedBuffer)}`;
@@ -101,8 +102,8 @@ export const encryptPrivateKey = async (plainText, passphrase) => {
  */
 
 export const decryptPrivateKey = async (encryptedData, passphrase) => {
-  console.log(`encryptedData::${encryptedData}`);
-  console.log(`passphrase переданный в функции decryptPrivateKey::${passphrase}`);
+  console.log(`decryptPrivateKey - encryptedData: ${encryptedData}`);
+  console.log(`decryptPrivateKey - passphrase: ${passphrase}`);
   const parts = encryptedData.split(":");
   console.log(`parts::${parts}`);
   if (parts.length !== 3) {
@@ -110,20 +111,21 @@ export const decryptPrivateKey = async (encryptedData, passphrase) => {
   }
   const [saltB64, ivB64, dataB64] = parts;
   // Проверяем каждую часть
-  console.log("Salt Base64:", saltB64);
-  console.log("IV Base64:", ivB64);
-  console.log("Ciphertext Base64:", dataB64);
+  console.log("decryptPrivateKey - Salt Base64:", saltB64);
+  console.log("decryptPrivateKey - IV Base64:", ivB64);
+  console.log("decryptPrivateKey - Ciphertext Base64:", dataB64);
   const salt = new Uint8Array(base64ToArrayBuffer(saltB64));
   const iv = new Uint8Array(base64ToArrayBuffer(ivB64));
   const ciphertext = base64ToArrayBuffer(dataB64);
-  console.log(`decryptPrivateKey_func_salt::${salt}`);
-  console.log(`decryptPrivateKey_func_iv::${iv}`);
-  console.log(`decryptPrivateKey_func_ciphertext::${ciphertext}`);
+  console.log("decryptPrivateKey - salt (Uint8Array):", salt);
+  console.log("decryptPrivateKey - iv (Uint8Array):", iv);
   const key = await deriveKey(passphrase, salt);
   const decryptedBuffer = await window.crypto.subtle.decrypt(
     { name: "AES-GCM", iv },
     key,
     ciphertext
   );
+  console.log(`decryptPrivateKey - Result: ${uint8ArrayToStr(new Uint8Array(decryptedBuffer))}`);
+  
   return uint8ArrayToStr(new Uint8Array(decryptedBuffer));
 };

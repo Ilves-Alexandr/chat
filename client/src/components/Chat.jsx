@@ -123,60 +123,77 @@ const Chat = () => {
         }
 
         // 2. Загрузка приватного ключа из IndexedDB или генерация новых ключей
-        let privateKey = await retrievePrivateKey();
-        console.log("Stored key:", privateKey);
         let publicKey;
+        let privateKey;
         // Запрашиваем секретную фразу у пользователя
         const passphrase = "testpass";
         console.log("Используемый passphrase:", passphrase);
-        if (!privateKey) {
-          // Если ключ не найден – генерируем новую пару ключей
-          const generatedKeys = await generateKeys(passphrase);
-          privateKey = generatedKeys.privateKey;
-          publicKey = generatedKeys.publicKey;
-          // Шифруем приватный ключ перед сохранением
-          const protectedKey = await encryptPrivateKey(privateKey, passphrase);
-          console.log(`protectedKey:: ${protectedKey}`);
-          
-          await storePrivateKey(protectedKey);
-          console.log("Ключи сгенерированы и сохранены");
-          toast.success("Ключи сгенерированы и сохранены");
-        } else {
-          // Если ключ найден, проверяем его формат:
-          // если строка содержит разделитель ":", считаем, что ключ зашифрован,
-          // иначе – не защищён (в целях совместимости)
-          if (privateKey.includes(":")) {
-            const protectedKey = privateKey;
-            const parts = protectedKey.split(":");
-            console.log("Protected key parts:", parts);
-            if (parts.length !== 3) {
-              console.error(
-                "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
-              );
-              toast.error("Неверный формат зашифрованного ключа");
-              return;
-            }
-            try {
-              privateKey = await decryptPrivateKey(protectedKey, passphrase);
-              console.log("Приватный ключ дешифрован из хранилища", privateKey);
-            } catch (err) {
-              console.error("Ошибка дешифровки приватного ключа:", err);
-              toast.error("Ошибка дешифровки приватного ключа");
-              return; // Прерываем инициализацию, если не удалось расшифровать
-            }
-          } else {
-            console.log("Приватный ключ загружен из хранилища (без защиты)");
-          }
-          // Получаем публичный ключ из приватного
-          const extractedKey = await openpgp.readKey({
-            armoredKey: privateKey,
-          });
-          publicKey = extractedKey.toPublic().armor();
-          console.log("Извлечённый публичный ключ:", publicKey);
-          console.log("Приватный ключ загружен из хранилища", privateKey);
-          toast.success("Приватный ключ загружен из хранилища");
-        }
+        try {
+          privateKey = await retrievePrivateKey(passphrase);
+        } catch (error) {
+          console.error(
+            "Приватный ключ не найден или ошибка дешифровки:",
+            error
+          );
+          toast.error(
+            "Приватный ключ не найден. Будут сгенерированы новые ключи."
+          );
+          console.log("Stored key:", privateKey);
 
+          if (!privateKey) {
+            // Если ключ не найден – генерируем новую пару ключей
+            const generatedKeys = await generateKeys(passphrase);
+            privateKey = generatedKeys.privateKey;
+            publicKey = generatedKeys.publicKey;
+            // Шифруем приватный ключ перед сохранением
+            const protectedKey = await encryptPrivateKey(
+              privateKey,
+              passphrase
+            );
+            console.log(`protectedKey:: ${protectedKey}`);
+
+            await storePrivateKey(protectedKey);
+            console.log("Ключи сгенерированы и сохранены");
+            toast.success("Ключи сгенерированы и сохранены");
+          } else {
+            // Если ключ найден, проверяем его формат:
+            // если строка содержит разделитель ":", считаем, что ключ зашифрован,
+            // иначе – не защищён (в целях совместимости)
+            if (privateKey.includes(":")) {
+              const protectedKey = privateKey;
+              const parts = protectedKey.split(":");
+              console.log("Protected key parts:", parts);
+              if (parts.length !== 3) {
+                console.error(
+                  "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
+                );
+                toast.error("Неверный формат зашифрованного ключа");
+                return;
+              }
+              try {
+                privateKey = await decryptPrivateKey(protectedKey, passphrase);
+                console.log(
+                  "Приватный ключ дешифрован из хранилища",
+                  privateKey
+                );
+              } catch (err) {
+                console.error("Ошибка дешифровки приватного ключа:", err);
+                toast.error("Ошибка дешифровки приватного ключа");
+                return; // Прерываем инициализацию, если не удалось расшифровать
+              }
+            } else {
+              console.log("Приватный ключ загружен из хранилища (без защиты)");
+            }
+            // Получаем публичный ключ из приватного
+            const extractedKey = await openpgp.readKey({
+              armoredKey: privateKey,
+            });
+            publicKey = extractedKey.toPublic().armor();
+            console.log("Извлечённый публичный ключ:", publicKey);
+            console.log("Приватный ключ загружен из хранилища", privateKey);
+            toast.success("Приватный ключ загружен из хранилища");
+          }
+        }
         // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
         privateKeyRef.current = privateKey;
         setKeys((prevKeys) => ({ ...prevKeys, publicKey }));
