@@ -44,6 +44,8 @@ export const base64ToArrayBuffer = (base64) => {
  * Производит вывод криптографического ключа из фразы с использованием PBKDF2.
  */
 const deriveKey = async (passphrase, salt) => {
+  console.log(`passphrase переданный в функции deriveKey::${passphrase}`);
+  
   const baseKey = await window.crypto.subtle.importKey(
     "raw",
     strToUint8Array(passphrase),
@@ -73,7 +75,7 @@ const deriveKey = async (passphrase, salt) => {
  */
 export const encryptPrivateKey = async (plainText, passphrase) => {
   console.log(`plainText::${plainText}`);
-  console.log(`passphrase::${passphrase}`);
+  console.log(`passphrase переданный в функции encryptPrivateKey::${passphrase}`);
   // Генерируем случайную соль (16 байт) и IV (12 байт)
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -100,7 +102,7 @@ export const encryptPrivateKey = async (plainText, passphrase) => {
 
 export const decryptPrivateKey = async (encryptedData, passphrase) => {
   console.log(`encryptedData::${encryptedData}`);
-  console.log(`passphrase::${passphrase}`);
+  console.log(`passphrase переданный в функции decryptPrivateKey::${passphrase}`);
   const parts = encryptedData.split(":");
   console.log(`parts::${parts}`);
   if (parts.length !== 3) {

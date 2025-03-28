@@ -128,13 +128,16 @@ const Chat = () => {
         let publicKey;
         // Запрашиваем секретную фразу у пользователя
         const passphrase = "testpass";
+        console.log("Используемый passphrase:", passphrase);
         if (!privateKey) {
           // Если ключ не найден – генерируем новую пару ключей
-          const generatedKeys = await generateKeys();
+          const generatedKeys = await generateKeys(passphrase);
           privateKey = generatedKeys.privateKey;
           publicKey = generatedKeys.publicKey;
           // Шифруем приватный ключ перед сохранением
           const protectedKey = await encryptPrivateKey(privateKey, passphrase);
+          console.log(`protectedKey:: ${protectedKey}`);
+          
           await storePrivateKey(protectedKey);
           console.log("Ключи сгенерированы и сохранены");
           toast.success("Ключи сгенерированы и сохранены");
