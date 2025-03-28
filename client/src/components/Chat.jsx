@@ -85,7 +85,7 @@ const Chat = () => {
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
     try {
-      const storedKey = await retrievePrivateKey();
+      const storedKey = await retrievePrivateKey(passphrase);
       if (!storedKey) {
         toast.error("Приватный ключ не найден.");
         return;
@@ -123,13 +123,14 @@ const Chat = () => {
         }
 
         // 2. Загрузка приватного ключа из IndexedDB или генерация новых ключей
-        let publicKey;
         let privateKey;
+        let publicKey
         // Запрашиваем секретную фразу у пользователя
         const passphrase = "testpass";
         console.log("Используемый passphrase:", passphrase);
         try {
           privateKey = await retrievePrivateKey(passphrase);
+          console.log("Приватный ключ успешно восстановлен:", privateKey);
         } catch (error) {
           console.error(
             "Приватный ключ не найден или ошибка дешифровки:",
@@ -138,8 +139,6 @@ const Chat = () => {
           toast.error(
             "Приватный ключ не найден. Будут сгенерированы новые ключи."
           );
-          console.log("Stored key:", privateKey);
-
           if (!privateKey) {
             // Если ключ не найден – генерируем новую пару ключей
             const generatedKeys = await generateKeys(passphrase);

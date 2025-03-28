@@ -93,6 +93,7 @@ export const retrievePrivateKey = async (passphrase) => {
       }
       console.log("Найден зашифрованный ключ:", request.result.key);
       try {
+        console.log("Используемый passphrase перед дешифровкой:", passphrase);
         const decryptedPrivateKey = await openpgp.decryptKey({
           privateKey: await openpgp.readPrivateKey({
             armoredKey: request.result.key,
