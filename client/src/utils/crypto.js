@@ -79,7 +79,9 @@ export const storePrivateKey = async (privateKey) => {
 };
 // 📌 Функция для загрузки приватного ключа из IndexedDB
 export const retrievePrivateKey = async (passphrase) => {
+  console.log("Переданный passphrase для дешифровки:", passphrase);
   const db = await initializeDB();
+  console.log(`await initializeDB()::${db}`);
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("keys", "readonly"); // Открываем транзакцию только для чтения
     const store = transaction.objectStore("keys");

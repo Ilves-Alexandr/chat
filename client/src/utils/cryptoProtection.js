@@ -102,6 +102,7 @@ export const encryptPrivateKey = async (plainText, passphrase) => {
  */
 
 export const decryptPrivateKey = async (encryptedData, passphrase) => {
+  console.log("Переданный passphrase для дешифровки:", passphrase);
   console.log(`decryptPrivateKey - encryptedData: ${encryptedData}`);
   console.log(`decryptPrivateKey - passphrase: ${passphrase}`);
   const parts = encryptedData.split(":");

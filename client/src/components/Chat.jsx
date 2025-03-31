@@ -84,13 +84,13 @@ const Chat = () => {
   };
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
+    const passphrase = "testpass";
     try {
       const storedKey = await retrievePrivateKey(passphrase);
       if (!storedKey) {
         toast.error("Приватный ключ не найден.");
         return;
       }
-      const passphrase = "testpass";
       const decryptedKey = await decryptPrivateKey(storedKey, passphrase);
       privateKeyRef.current = decryptedKey;
       const extractedKey = await openpgp.readKey({ armoredKey: decryptedKey });
