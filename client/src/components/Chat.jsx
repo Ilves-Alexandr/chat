@@ -24,7 +24,7 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
-  const [chatType, setChatType] = useState("private"); // 'group' или 'private'
+  const [chatType, setChatType] = useState("group"); // 'group' или 'private'
   const [recipientId, setRecipientId] = useState(""); // ID собеседника для приватного чата
   const [keys, setKeys] = useState({
     publicKey: null,
@@ -269,15 +269,22 @@ const Chat = () => {
             }
             // Если это сообщение – пытаемся его расшифровать
             else if (data.type === "message") {
+              let text;
               try {
-                const decryptedMessage = await decryptMessage(
-                  data.encryptedMessage,
-                  privateKeyRef.current
-                );
+                if (chatType === "private") {
+                  // Для приватного чата расшифровываем сообщение
+                  text = await decryptMessage(
+                    data.encryptedMessage,
+                    privateKeyRef.current
+                  );
+                } else {
+                  // Для группового чата сообщение передаётся в открытом виде
+                  text = data.encryptedMessage;
+                }
                 // Добавляем сообщение в историю
                 setMessages((prev) => [
                   ...prev,
-                  { userId: data.clientId, text: decryptedMessage },
+                  { userId: data.clientId, text },
                 ]);
               } catch (err) {
                 console.error("Ошибка расшифровки сообщения:", err);
@@ -318,13 +325,13 @@ const Chat = () => {
 
   // Функция отправки сообщения (текстового)
   const sendMessage = async (message) => {
+    // 1. Проверяем, что WebSocket-соединение активно
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket не подключен");
       toast.error("WebSocket не подключен");
       return;
     }
-  
-    // Для группового чата не требуется шифрование
+
     let messageToSend = message;
     if (chatType === "private") {
       // Если приватный чат – шифруем сообщение
@@ -333,7 +340,9 @@ const Chat = () => {
         toast.error("Публичный ключ получателя отсутствует");
         return;
       }
-      messageToSend = (await encryptMessage(message, keys.recipientPublicKey)).trim();
+      messageToSend = (
+        await encryptMessage(message, keys.recipientPublicKey)
+      ).trim();
       // Дополнительная проверка формата для приватного чата
       if (
         !messageToSend.startsWith("-----BEGIN PGP MESSAGE-----") ||
@@ -344,45 +353,56 @@ const Chat = () => {
         return;
       }
     }
-  
-    wsRef.current.send(
-      JSON.stringify({
-        type: "message",
-        encryptedMessage: messageToSend,
-        clientId: localStorage.getItem("clientId"),
-      })
+
+    // 3. Если сообщение не является строкой, пытаемся его преобразовать
+    if (typeof message !== "string") {
+      try {
+        message = JSON.stringify(message);
+        console.log("Преобразовано в строку:", message);
+      } catch (err) {
+        console.error("Не удалось преобразовать сообщение в строку:", err);
+        toast.error("Ошибка преобразования сообщения");
+        return;
+      }
+    }
+
+    // 4. Проверяем, что строка не пуста (обязательно вызываем trim)
+    if (message.trim() === "") {
+      console.error("Сообщение пустое");
+      toast.error("Сообщение пустое");
+      return;
+    }
+    console.log("Тип сообщения для шифрования:", typeof message);
+    console.log("Сообщение для шифрования:", message);
+    console.log(
+      "Используем публичный ключ получателя:",
+      keys.recipientPublicKey
     );
-    setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
-    setInput("");
-    toast.success("Сообщение отправлено");
-  };
-  
-  wsRef.current.onmessage = async (event) => {
     try {
-      let data = event.data;
-      if (typeof data !== "string") {
-        data = data.toString();
-        console.warn("Преобразование полученного сообщения к строке");
-      }
-      data = JSON.parse(data);
-      console.log("Получено сообщение от сервера:", data);
-      if (data.type === "key_exchange" && data.publicKey) {
-        // Обработка обмена ключами остаётся для приватного чата, если необходимо
-        setKeys((prevKeys) => ({ ...prevKeys, recipientPublicKey: data.publicKey }));
-        console.log("Получен публичный ключ другого клиента:", data.publicKey);
-      } else if (data.type === "message") {
-        let text;
-        if (chatType === "private") {
-          // Для приватного чата расшифровываем сообщение
-          text = await decryptMessage(data.encryptedMessage, privateKeyRef.current);
-        } else {
-          // Для группового чата сообщение передаётся в открытом виде
-          text = data.encryptedMessage;
-        }
-        setMessages((prev) => [...prev, { userId: data.clientId, text }]);
-      }
+      let encryptedMessage = message;
+
+      // 6. Логируем зашифрованное сообщение для отладки
+      console.log("Зашифрованное сообщение:", encryptedMessage);
+
+      // 7. Обрабатываем строку: обрезаем лишние пробелы с начала и конца
+      const trimmedEncrypted = encryptedMessage.trim();
+
+      // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
+      wsRef.current.send(
+        JSON.stringify({
+          type: "message",
+          encryptedMessage: trimmedEncrypted,
+          clientId: localStorage.getItem("clientId"),
+        })
+      );
+
+      // 10. Локально добавляем отправленное сообщение в историю (для мгновенного отображения отправителем)
+      setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
+      setInput("");
+      toast.success("Сообщение отправлено");
     } catch (err) {
-      console.error("Ошибка обработки входящего сообщения:", err.message);
+      console.error("Ошибка отправки сообщения:", err);
+      toast.error("Ошибка отправки сообщения");
     }
   };
   // Обработчик выбора файла (если потребуется отправка файла)
