@@ -318,94 +318,71 @@ const Chat = () => {
 
   // Функция отправки сообщения (текстового)
   const sendMessage = async (message) => {
-    // 1. Проверяем, что WebSocket-соединение активно
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket не подключен");
       toast.error("WebSocket не подключен");
       return;
     }
-
-    // Если чат приватный, проверяем наличие публичного ключа собеседника
-    if (chatType === "private" && !keys.recipientPublicKey) {
-      console.error("Публичный ключ получателя отсутствует");
-      toast.error("Публичный ключ получателя отсутствует");
-      return;
-    }
-
-    // 3. Если сообщение не является строкой, пытаемся его преобразовать
-    if (typeof message !== "string") {
-      try {
-        message = JSON.stringify(message);
-        console.log("Преобразовано в строку:", message);
-      } catch (err) {
-        console.error("Не удалось преобразовать сообщение в строку:", err);
-        toast.error("Ошибка преобразования сообщения");
+  
+    // Для группового чата не требуется шифрование
+    let messageToSend = message;
+    if (chatType === "private") {
+      // Если приватный чат – шифруем сообщение
+      if (!keys.recipientPublicKey) {
+        console.error("Публичный ключ получателя отсутствует");
+        toast.error("Публичный ключ получателя отсутствует");
+        return;
+      }
+      messageToSend = (await encryptMessage(message, keys.recipientPublicKey)).trim();
+      // Дополнительная проверка формата для приватного чата
+      if (
+        !messageToSend.startsWith("-----BEGIN PGP MESSAGE-----") ||
+        !messageToSend.endsWith("-----END PGP MESSAGE-----")
+      ) {
+        console.error("Неверный формат зашифрованного сообщения");
+        toast.error("Неверный формат зашифрованного сообщения");
         return;
       }
     }
-
-    // 4. Проверяем, что строка не пуста (обязательно вызываем trim)
-    if (message.trim() === "") {
-      console.error("Сообщение пустое");
-      toast.error("Сообщение пустое");
-      return;
-    }
-    console.log("Тип сообщения для шифрования:", typeof message);
-    console.log("Сообщение для шифрования:", message);
-    console.log(
-      "Используем публичный ключ получателя:",
-      keys.recipientPublicKey
+  
+    wsRef.current.send(
+      JSON.stringify({
+        type: "message",
+        encryptedMessage: messageToSend,
+        clientId: localStorage.getItem("clientId"),
+      })
     );
+    setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
+    setInput("");
+    toast.success("Сообщение отправлено");
+  };
+  
+  wsRef.current.onmessage = async (event) => {
     try {
-      // Логируем сообщение до шифрования
-      console.log("Сообщение для шифрования:", message);
-      // 5. Шифруем сообщение с использованием публичного ключа получателя
-      let encryptedMessage;
-      if (chatType === "private") {
-        encryptedMessage = await encryptMessage(
-          message,
-          keys.recipientPublicKey
-        );
-      } else {
-        encryptedMessage = message;
+      let data = event.data;
+      if (typeof data !== "string") {
+        data = data.toString();
+        console.warn("Преобразование полученного сообщения к строке");
       }
-
-      // 6. Логируем зашифрованное сообщение для отладки
-      console.log("Зашифрованное сообщение:", encryptedMessage);
-
-      // 7. Обрабатываем строку: обрезаем лишние пробелы с начала и конца
-      const trimmedEncrypted = encryptedMessage.trim();
-
-      // 8. Проверяем, что результат соответствует формату PGP-сообщения
-      if (chatType === "private") {
-        if (
-          !trimmedEncrypted.startsWith("-----BEGIN PGP MESSAGE-----") ||
-          !trimmedEncrypted.endsWith("-----END PGP MESSAGE-----")
-        ) {
-          console.error(
-            "Зашифрованное сообщение не соответствует ожидаемому формату"
-          );
-          toast.error("Неверный формат зашифрованного сообщения");
-          return;
+      data = JSON.parse(data);
+      console.log("Получено сообщение от сервера:", data);
+      if (data.type === "key_exchange" && data.publicKey) {
+        // Обработка обмена ключами остаётся для приватного чата, если необходимо
+        setKeys((prevKeys) => ({ ...prevKeys, recipientPublicKey: data.publicKey }));
+        console.log("Получен публичный ключ другого клиента:", data.publicKey);
+      } else if (data.type === "message") {
+        let text;
+        if (chatType === "private") {
+          // Для приватного чата расшифровываем сообщение
+          text = await decryptMessage(data.encryptedMessage, privateKeyRef.current);
+        } else {
+          // Для группового чата сообщение передаётся в открытом виде
+          text = data.encryptedMessage;
         }
+        setMessages((prev) => [...prev, { userId: data.clientId, text }]);
       }
-
-      // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
-      wsRef.current.send(
-        JSON.stringify({
-          type: "message",
-          encryptedMessage: trimmedEncrypted,
-          clientId: localStorage.getItem("clientId"),
-        })
-      );
-
-      // 10. Локально добавляем отправленное сообщение в историю (для мгновенного отображения отправителем)
-      setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
-      setInput("");
-      toast.success("Сообщение отправлено");
     } catch (err) {
-      console.error("Ошибка отправки сообщения:", err);
-      toast.error("Ошибка отправки сообщения");
+      console.error("Ошибка обработки входящего сообщения:", err.message);
     }
   };
   // Обработчик выбора файла (если потребуется отправка файла)
