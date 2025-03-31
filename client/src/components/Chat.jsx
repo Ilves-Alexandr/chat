@@ -40,28 +40,31 @@ const Chat = () => {
     // 1. Удаляем clientId из localStorage
     localStorage.removeItem("clientId");
     toast.info("ClientId удалён из LocalStorage");
-  
+
     // 2. Удаляем только запись с приватным ключом из IndexedDB
     try {
       const db = await initializeDB();
       const transaction = db.transaction("keys", "readwrite");
       const store = transaction.objectStore("keys");
       const request = store.delete("privateKey");
-  
+
       request.onsuccess = () => {
         console.log("Приватный ключ удалён из IndexedDB");
         toast.info("Приватный ключ удалён из IndexedDB");
       };
-  
+
       request.onerror = (e) => {
-        console.error("Ошибка удаления приватного ключа из IndexedDB:", e.target.error);
+        console.error(
+          "Ошибка удаления приватного ключа из IndexedDB:",
+          e.target.error
+        );
         toast.error("Ошибка удаления приватного ключа из IndexedDB");
       };
     } catch (error) {
       console.error("Ошибка при открытии IndexedDB:", error);
       toast.error("Ошибка при доступе к IndexedDB");
     }
-  
+
     // 3. Вызов API для удаления пользовательских данных из Redis
     try {
       // Получаем clientId (если его уже нет в LocalStorage, можно использовать другое значение,
@@ -81,19 +84,19 @@ const Chat = () => {
       console.error("Ошибка вызова API для очистки данных:", err);
       toast.error("Ошибка очистки данных на сервере");
     }
-  
+
     // 4. Сброс локальных состояний
     setMessages([]);
     setKeys({ publicKey: null, recipientPublicKey: null });
     setInput("");
     setFile(null);
-  
+
     // 5. Сообщаем пользователю о необходимости перезагрузить страницу
     toast.info(
       "Данные пользователя очищены. Перезагрузите страницу для повторной генерации ключей."
     );
   };
-  
+
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
     const passphrase = "testpass";
@@ -136,7 +139,7 @@ const Chat = () => {
 
         // 2. Загрузка приватного ключа из IndexedDB или генерация новых ключей
         let privateKey;
-        let publicKey
+        let publicKey;
         // Запрашиваем секретную фразу у пользователя
         const passphrase = "testpass";
         console.log("Используемый passphrase:", passphrase);
@@ -321,12 +324,7 @@ const Chat = () => {
       toast.error("WebSocket не подключен");
       return;
     }
-    // 2. Проверяем, что публичный ключ получателя доступен (для приватного чата)
-    if (!keys.recipientPublicKey) {
-      console.error("Публичный ключ получателя отсутствует");
-      toast.error("Публичный ключ получателя отсутствует");
-      return;
-    }
+
     // Если чат приватный, проверяем наличие публичного ключа собеседника
     if (chatType === "private" && !keys.recipientPublicKey) {
       console.error("Публичный ключ получателя отсутствует");
@@ -362,10 +360,15 @@ const Chat = () => {
       // Логируем сообщение до шифрования
       console.log("Сообщение для шифрования:", message);
       // 5. Шифруем сообщение с использованием публичного ключа получателя
-      const encryptedMessage = await encryptMessage(
-        message,
-        keys.recipientPublicKey
-      );
+      let encryptedMessage;
+      if (chatType === "private") {
+        encryptedMessage = await encryptMessage(
+          message,
+          keys.recipientPublicKey
+        );
+      } else {
+        encryptedMessage = message;
+      }
 
       // 6. Логируем зашифрованное сообщение для отладки
       console.log("Зашифрованное сообщение:", encryptedMessage);
@@ -374,15 +377,17 @@ const Chat = () => {
       const trimmedEncrypted = encryptedMessage.trim();
 
       // 8. Проверяем, что результат соответствует формату PGP-сообщения
-      if (
-        !trimmedEncrypted.startsWith("-----BEGIN PGP MESSAGE-----") ||
-        !trimmedEncrypted.endsWith("-----END PGP MESSAGE-----")
-      ) {
-        console.error(
-          "Зашифрованное сообщение не соответствует ожидаемому формату"
-        );
-        toast.error("Неверный формат зашифрованного сообщения");
-        return;
+      if (chatType === "private") {
+        if (
+          !trimmedEncrypted.startsWith("-----BEGIN PGP MESSAGE-----") ||
+          !trimmedEncrypted.endsWith("-----END PGP MESSAGE-----")
+        ) {
+          console.error(
+            "Зашифрованное сообщение не соответствует ожидаемому формату"
+          );
+          toast.error("Неверный формат зашифрованного сообщения");
+          return;
+        }
       }
 
       // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
