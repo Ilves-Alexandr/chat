@@ -24,7 +24,7 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
-  const [chatType, setChatType] = useState("group"); // 'group' или 'private'
+  const [chatType, setChatType] = useState("private"); // 'group' или 'private'
   const [recipientId, setRecipientId] = useState(""); // ID собеседника для приватного чата
   const [keys, setKeys] = useState({
     publicKey: null,
