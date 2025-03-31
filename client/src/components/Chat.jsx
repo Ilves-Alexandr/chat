@@ -26,6 +26,7 @@ const Chat = () => {
   const [file, setFile] = useState(null);
   const [chatType, setChatType] = useState("group"); // 'group' или 'private'
   const [recipientId, setRecipientId] = useState(""); // ID собеседника для приватного чата
+  const [showRecipientInput, setShowRecipientInput] = useState(false);
   const [keys, setKeys] = useState({
     publicKey: null,
     recipientPublicKey: null,
@@ -446,13 +447,20 @@ const Chat = () => {
       </div>
       {/* Если выбран приватный чат, поле для ввода ID собеседника */}
       {chatType === "private" && (
-        <input
-          type="text"
-          value={recipientId}
-          onChange={(e) => setRecipientId(e.target.value)}
-          placeholder="Введите ID собеседника"
-          className="recipient-input"
-        />
+        <div>
+          <button onClick={() => setShowRecipientInput((prev) => !prev)}>
+            {showRecipientInput ? "Скрыть поле ввода" : "Ввести ID собеседника"}
+          </button>
+          {showRecipientInput && (
+            <input
+              type="text"
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+              placeholder="Введите ID собеседника"
+              className="recipient-input"
+            />
+          )}
+        </div>
       )}
       <div className="messages">
         {messages.map((msg, index) => (
