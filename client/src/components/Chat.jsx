@@ -26,6 +26,7 @@ const Chat = () => {
   const [file, setFile] = useState(null);
   const [chatType, setChatType] = useState("group"); // 'group' или 'private'
   const [recipientId, setRecipientId] = useState(""); // ID собеседника для приватного чата
+  const [confirmedRecipientId, setConfirmedRecipientId] = useState("");
   const [showRecipientInput, setShowRecipientInput] = useState(false);
   const [keys, setKeys] = useState({
     publicKey: null,
@@ -91,6 +92,8 @@ const Chat = () => {
     setKeys({ publicKey: null, recipientPublicKey: null });
     setInput("");
     setFile(null);
+    setRecipientId("");
+    setConfirmedRecipientId("");
 
     // 5. Сообщаем пользователю о необходимости перезагрузить страницу
     toast.info(
@@ -113,16 +116,20 @@ const Chat = () => {
       const publicKey = extractedKey.toPublic().armor();
       setKeys((prev) => ({ ...prev, publicKey }));
       toast.success("Аккаунт успешно восстановлен.");
-      // localStorage.removeItem("clientId");
-      // toast.info(
-      //   "Аккаунт сброшен. Перезагрузите страницу для повторной генерации ключей."
-      // );
     } catch (err) {
       console.error("Ошибка восстановления аккаунта:", err);
       toast.error("Ошибка восстановления аккаунта");
     }
   };
-
+  // Функция для подтверждения введённого идентификатора собеседника
+  const confirmRecipient = () => {
+    if (!recipientId.trim()) {
+      toast.error("Введите корректный идентификатор собеседника");
+      return;
+    }
+    setConfirmedRecipientId(recipientId.trim());
+    toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
+  };
   useEffect(() => {
     const initChat = async () => {
       try {
@@ -276,7 +283,8 @@ const Chat = () => {
                   // Для приватного чата расшифровываем сообщение
                   text = await decryptMessage(
                     data.encryptedMessage,
-                    privateKeyRef.current
+                    privateKeyRef.current,
+                    passphrase
                   );
                 } else {
                   // Для группового чата сообщение передаётся в открытом виде
@@ -344,7 +352,6 @@ const Chat = () => {
       messageToSend = (
         await encryptMessage(message, keys.recipientPublicKey)
       ).trim();
-      // Дополнительная проверка формата для приватного чата
       if (
         !messageToSend.startsWith("-----BEGIN PGP MESSAGE-----") ||
         !messageToSend.endsWith("-----END PGP MESSAGE-----")
@@ -385,19 +392,27 @@ const Chat = () => {
       // 6. Логируем зашифрованное сообщение для отладки
       console.log("Зашифрованное сообщение:", encryptedMessage);
 
-      // 7. Обрабатываем строку: обрезаем лишние пробелы с начала и конца
-      const trimmedEncrypted = encryptedMessage.trim();
+      // // 7. Обрабатываем строку: обрезаем лишние пробелы с начала и конца
+      // const trimmedEncrypted = encryptedMessage.trim();
 
-      // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
+      // // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
+      // wsRef.current.send(
+      //   JSON.stringify({
+      //     type: "message",
+      //     encryptedMessage: trimmedEncrypted,
+      //     clientId: localStorage.getItem("clientId"),
+      //     ...(chatType === "private" && { recipientId }),
+      //   })
+      // );
+      const trimmedEncrypted = messageToSend.trim();
       wsRef.current.send(
         JSON.stringify({
           type: "message",
           encryptedMessage: trimmedEncrypted,
           clientId: localStorage.getItem("clientId"),
-          ...(chatType === "private" && { recipientId }),
+          ...(chatType === "private" && { recipientId: confirmedRecipientId }),
         })
       );
-
       // 10. Локально добавляем отправленное сообщение в историю (для мгновенного отображения отправителем)
       setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
       setInput("");
@@ -453,13 +468,16 @@ const Chat = () => {
             {showRecipientInput ? "Скрыть поле ввода" : "Ввести ID собеседника"}
           </button>
           {showRecipientInput && (
-            <input
-              type="text"
-              value={recipientId}
-              onChange={(e) => setRecipientId(e.target.value)}
-              placeholder="Введите ID собеседника"
-              className="recipient-input"
-            />
+            <div>
+              <input
+                type="text"
+                value={recipientId}
+                onChange={(e) => setRecipientId(e.target.value)}
+                placeholder="Введите ID собеседника"
+                className="recipient-input"
+              />
+              <button onClick={confirmRecipient}>Подтвердить получателя</button>
+            </div>
           )}
         </div>
       )}
@@ -482,7 +500,7 @@ const Chat = () => {
         <input type="file" onChange={handleFileChange} className="file-input" />
         <button
           onClick={() => sendMessage(input)}
-          disabled={chatType === "private" && !keys.recipientPublicKey}
+          disabled={chatType === "private" && !confirmedRecipientId}
         >
           Отправить
         </button>
