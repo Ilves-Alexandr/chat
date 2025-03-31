@@ -7,6 +7,7 @@ import {
   decryptMessage,
   storePrivateKey,
   retrievePrivateKey,
+  initializeDB,
 } from "../utils/crypto";
 import {
   encryptPrivateKey,
@@ -38,25 +39,35 @@ const Chat = () => {
   const clearUserData = async () => {
     // 1. Удаляем clientId из localStorage
     localStorage.removeItem("clientId");
-    toast.info("LocalStorage очищен");
-
-    // 2. Удаляем базу IndexedDB (удаляет всю базу данных)
-    const deleteRequest = indexedDB.deleteDatabase("chatAppDB");
-    deleteRequest.onsuccess = () => {
-      console.log("IndexedDB 'chatAppDB' удалена");
-      toast.info("IndexedDB очищена");
-    };
-    deleteRequest.onerror = (e) => {
-      console.error("Ошибка при удалении IndexedDB:", e.target.error);
-      toast.error("Ошибка при удалении IndexedDB");
-    };
-
-    // 3. Вызов API для удаления пользовательских данных из Redis
-
+    toast.info("ClientId удалён из LocalStorage");
+  
+    // 2. Удаляем только запись с приватным ключом из IndexedDB
     try {
-      // Эндпоинт DELETE /api/clearUserData?clientId=...
-      const сlientId = localStorage.getItem("clientId") || "текущий clientId";
-      const response = await fetch(`/api/clearUserData?clientId=${сlientId}`, {
+      const db = await initializeDB();
+      const transaction = db.transaction("keys", "readwrite");
+      const store = transaction.objectStore("keys");
+      const request = store.delete("privateKey");
+  
+      request.onsuccess = () => {
+        console.log("Приватный ключ удалён из IndexedDB");
+        toast.info("Приватный ключ удалён из IndexedDB");
+      };
+  
+      request.onerror = (e) => {
+        console.error("Ошибка удаления приватного ключа из IndexedDB:", e.target.error);
+        toast.error("Ошибка удаления приватного ключа из IndexedDB");
+      };
+    } catch (error) {
+      console.error("Ошибка при открытии IndexedDB:", error);
+      toast.error("Ошибка при доступе к IndexedDB");
+    }
+  
+    // 3. Вызов API для удаления пользовательских данных из Redis
+    try {
+      // Получаем clientId (если его уже нет в LocalStorage, можно использовать другое значение,
+      // но логика должна быть настроена так, чтобы сервер удалял только данные конкретного пользователя)
+      const clientId = localStorage.getItem("clientId") || "текущий clientId";
+      const response = await fetch(`/api/clearUserData?clientId=${clientId}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -70,18 +81,19 @@ const Chat = () => {
       console.error("Ошибка вызова API для очистки данных:", err);
       toast.error("Ошибка очистки данных на сервере");
     }
-
+  
     // 4. Сброс локальных состояний
     setMessages([]);
     setKeys({ publicKey: null, recipientPublicKey: null });
     setInput("");
     setFile(null);
-
-    // 5. Рекомендуем перезагрузить страницу для полной генерации новых данных
+  
+    // 5. Сообщаем пользователю о необходимости перезагрузить страницу
     toast.info(
       "Данные пользователя очищены. Перезагрузите страницу для повторной генерации ключей."
     );
   };
+  
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
     const passphrase = "testpass";
