@@ -394,6 +394,7 @@ const Chat = () => {
           type: "message",
           encryptedMessage: trimmedEncrypted,
           clientId: localStorage.getItem("clientId"),
+          ...(chatType === "private" && { recipientId }),
         })
       );
 

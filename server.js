@@ -87,7 +87,7 @@ wss.on("connection", (ws) => {
   ws.on("message", async (data) => {
     try {
       const parsedData = JSON.parse(data.toString());
-      const { clientId, publicKey, type, encryptedMessage } = parsedData;
+      const { clientId, publicKey, type, encryptedMessage, recipientId } = parsedData;
       // Проверка clientId на наличие и корректность UUID
       if (!clientId || !isUuid(clientId)) {
         ws.send(
@@ -147,7 +147,19 @@ wss.on("connection", (ws) => {
           clientId,
           encryptedMessage,
           timestamp,
+          recipientId
         });
+         // Если recipientId указан – это приватное сообщение
+         if (recipientId) {
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN && client.clientId === recipientId) {
+              client.send(messageData);
+            }
+          });
+        } else {
+          // Групповой чат – рассылаем всем
+          broadcastMessage({ clientId, encryptedMessage, timestamp });
+        }
         // Сохраняем сообщение в Redis (список сообщений) и публикуем в канал "chat"
         await redisPub.rPush("chat:messages", messageData);
         redisPub.publish("chat", messageData);
@@ -177,6 +189,7 @@ redisSub.subscribe("chat", (message) => {
       clientId: parsedMessage.clientId,
       encryptedMessage: parsedMessage.encryptedMessage,
       timestamp: parsedMessage.timestamp,
+      recipientId: parsedMessage.recipientId,
     });
   } catch (err) {
     console.error("Ошибка парсинга сообщения из Redis:", err.message);
