@@ -223,7 +223,9 @@ const Chat = () => {
           // }
           // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
           if (!publicKey) {
-            const extractedKey = await openpgp.readKey({ armoredKey: privateKey });
+            const extractedKey = await openpgp.readKey({
+              armoredKey: privateKey,
+            });
             publicKey = extractedKey.toPublic().armor();
             console.log("Извлечённый публичный ключ:", publicKey);
             toast.success("Приватный ключ загружен из хранилища");
@@ -259,6 +261,7 @@ const Chat = () => {
           }
         };
 
+        const currentClientId = localStorage.getItem("clientId");
         // 4. Обработка входящих сообщений от сервера
         wsRef.current.onmessage = async (event) => {
           try {
@@ -290,27 +293,28 @@ const Chat = () => {
             // Если это сообщение – пытаемся его расшифровать
             else if (data.type === "message") {
               let text;
-              try {
-                if (chatType === "private") {
-                  // Для приватного чата расшифровываем сообщение
+              // Если поле recipientId присутствует, это приватное сообщение
+              if (data.recipientId) {
+                // Проверяем, что сообщение предназначено для текущего клиента
+                if (data.recipientId === currentClientId) {
                   text = await decryptMessage(
                     data.encryptedMessage,
                     privateKeyRef.current,
-                    passphrase
+                    "testpass" // или другой способ получения passphrase
                   );
                 } else {
-                  // Для группового чата сообщение передаётся в открытом виде
-                  text = data.encryptedMessage;
+                  // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
+                  console.log(
+                    "Приватное сообщение не для этого клиента, оно адресовано:",
+                    data.recipientId
+                  );
+                  return;
                 }
-                // Добавляем сообщение в историю
-                setMessages((prev) => [
-                  ...prev,
-                  { userId: data.clientId, text },
-                ]);
-              } catch (err) {
-                console.error("Ошибка расшифровки сообщения:", err);
-                toast.error("Ошибка расшифровки сообщения");
+              } else {
+                // Групповой чат: сообщение передаётся в открытом виде
+                text = data.encryptedMessage;
               }
+              setMessages((prev) => [...prev, { userId: data.clientId, text }]);
             }
           } catch (err) {
             console.error("Ошибка обработки входящего сообщения:", err.message);
@@ -385,30 +389,22 @@ const Chat = () => {
         return;
       }
     }
-
+    
     // 4. Проверяем, что строка не пуста (обязательно вызываем trim)
     if (message.trim() === "") {
       console.error("Сообщение пустое");
       toast.error("Сообщение пустое");
       return;
     }
-    console.log("Тип сообщения для шифрования:", typeof message);
     console.log("Сообщение для шифрования:", message);
-    console.log(
-      "Используем публичный ключ получателя:",
-      keys.recipientPublicKey
-    );
     try {
-      let encryptedMessage = message;
-
-      // 6. Логируем зашифрованное сообщение для отладки
-      console.log("Зашифрованное сообщение:", encryptedMessage);
+      const currentClientId = localStorage.getItem("clientId");
       const trimmedEncrypted = messageToSend.trim();
       wsRef.current.send(
         JSON.stringify({
           type: "message",
           encryptedMessage: trimmedEncrypted,
-          clientId: localStorage.getItem("clientId"),
+          clientId: currentClientId,
           ...(chatType === "private" && { recipientId: confirmedRecipientId }),
         })
       );
