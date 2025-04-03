@@ -69,8 +69,6 @@ const Chat = () => {
 
     // 3. Вызов API для удаления пользовательских данных из Redis
     try {
-      // Получаем clientId (если его уже нет в LocalStorage, можно использовать другое значение,
-      // но логика должна быть настроена так, чтобы сервер удалял только данные конкретного пользователя)
       const clientId = localStorage.getItem("clientId") || "текущий clientId";
       const response = await fetch(`/api/clearUserData?clientId=${clientId}`, {
         method: "DELETE",
@@ -162,60 +160,74 @@ const Chat = () => {
           toast.error(
             "Приватный ключ не найден. Будут сгенерированы новые ключи."
           );
-          if (!privateKey) {
-            // Если ключ не найден – генерируем новую пару ключей
-            const generatedKeys = await generateKeys(passphrase);
-            privateKey = generatedKeys.privateKey;
-            publicKey = generatedKeys.publicKey;
-            // Шифруем приватный ключ перед сохранением
-            const protectedKey = await encryptPrivateKey(
-              privateKey,
-              passphrase
-            );
-            console.log(`protectedKey:: ${protectedKey}`);
+          const generatedKeys = await generateKeys(passphrase);
+          privateKey = generatedKeys.privateKey;
+          publicKey = generatedKeys.publicKey;
+          const protectedKey = await encryptPrivateKey(privateKey, passphrase);
+          console.log(`protectedKey:: ${protectedKey}`);
+          await storePrivateKey(protectedKey);
+          console.log("Ключи сгенерированы и сохранены");
+          toast.success("Ключи сгенерированы и сохранены");
+          // if (!privateKey) {
+          //   // Если ключ не найден – генерируем новую пару ключей
+          //   const generatedKeys = await generateKeys(passphrase);
+          //   privateKey = generatedKeys.privateKey;
+          //   publicKey = generatedKeys.publicKey;
+          //   // Шифруем приватный ключ перед сохранением
+          //   const protectedKey = await encryptPrivateKey(
+          //     privateKey,
+          //     passphrase
+          //   );
+          //   console.log(`protectedKey:: ${protectedKey}`);
 
-            await storePrivateKey(protectedKey);
-            console.log("Ключи сгенерированы и сохранены");
-            toast.success("Ключи сгенерированы и сохранены");
-          } else {
-            // Если ключ найден, проверяем его формат:
-            // если строка содержит разделитель ":", считаем, что ключ зашифрован,
-            // иначе – не защищён (в целях совместимости)
-            if (privateKey.includes(":")) {
-              const protectedKey = privateKey;
-              const parts = protectedKey.split(":");
-              console.log("Protected key parts:", parts);
-              if (parts.length !== 3) {
-                console.error(
-                  "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
-                );
-                toast.error("Неверный формат зашифрованного ключа");
-                return;
-              }
-              try {
-                privateKey = await decryptPrivateKey(protectedKey, passphrase);
-                console.log(
-                  "Приватный ключ дешифрован из хранилища",
-                  privateKey
-                );
-              } catch (err) {
-                console.error("Ошибка дешифровки приватного ключа:", err);
-                toast.error("Ошибка дешифровки приватного ключа");
-                return; // Прерываем инициализацию, если не удалось расшифровать
-              }
-            } else {
-              console.log("Приватный ключ загружен из хранилища (без защиты)");
-            }
-            if (!publicKey) {
-              const extractedKey = await openpgp.readKey({
-                armoredKey: privateKey,
-              });
-              publicKey = extractedKey.toPublic().armor();
-              console.log("Извлечённый публичный ключ:", publicKey);
-              toast.success("Приватный ключ загружен из хранилища");
-            }
-          }
+          //   await storePrivateKey(protectedKey);
+          //   console.log("Ключи сгенерированы и сохранены");
+          //   toast.success("Ключи сгенерированы и сохранены");
+          // } else {
+          //   // Если ключ найден, проверяем его формат:
+          //   // если строка содержит разделитель ":", считаем, что ключ зашифрован,
+          //   // иначе – не защищён (в целях совместимости)
+          //   if (privateKey.includes(":")) {
+          //     const protectedKey = privateKey;
+          //     const parts = protectedKey.split(":");
+          //     console.log("Protected key parts:", parts);
+          //     if (parts.length !== 3) {
+          //       console.error(
+          //         "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
+          //       );
+          //       toast.error("Неверный формат зашифрованного ключа");
+          //       return;
+          //     }
+          //     try {
+          //       privateKey = await decryptPrivateKey(protectedKey, passphrase);
+          //       console.log(
+          //         "Приватный ключ дешифрован из хранилища",
+          //         privateKey
+          //       );
+          //     } catch (err) {
+          //       console.error("Ошибка дешифровки приватного ключа:", err);
+          //       toast.error("Ошибка дешифровки приватного ключа");
+          //       return; // Прерываем инициализацию, если не удалось расшифровать
+          //     }
+          //   } else {
+          //     console.log("Приватный ключ загружен из хранилища (без защиты)");
+          //   }
+          //   if (!publicKey) {
+          //     const extractedKey = await openpgp.readKey({
+          //       armoredKey: privateKey,
+          //     });
+          //     publicKey = extractedKey.toPublic().armor();
+          //     console.log("Извлечённый публичный ключ:", publicKey);
+          //     toast.success("Приватный ключ загружен из хранилища");
+          //   }
+          // }
           // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
+          if (!publicKey) {
+            const extractedKey = await openpgp.readKey({ armoredKey: privateKey });
+            publicKey = extractedKey.toPublic().armor();
+            console.log("Извлечённый публичный ключ:", publicKey);
+            toast.success("Приватный ключ загружен из хранилища");
+          }
           privateKeyRef.current = privateKey;
           setKeys((prevKeys) => ({ ...prevKeys, publicKey }));
         }
