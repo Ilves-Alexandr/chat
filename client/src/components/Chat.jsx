@@ -206,19 +206,19 @@ const Chat = () => {
             } else {
               console.log("Приватный ключ загружен из хранилища (без защиты)");
             }
-            // Получаем публичный ключ из приватного
-            const extractedKey = await openpgp.readKey({
-              armoredKey: privateKey,
-            });
-            publicKey = extractedKey.toPublic().armor();
-            console.log("Извлечённый публичный ключ:", publicKey);
-            console.log("Приватный ключ загружен из хранилища", privateKey);
-            toast.success("Приватный ключ загружен из хранилища");
+            if (!publicKey) {
+              const extractedKey = await openpgp.readKey({
+                armoredKey: privateKey,
+              });
+              publicKey = extractedKey.toPublic().armor();
+              console.log("Извлечённый публичный ключ:", publicKey);
+              toast.success("Приватный ключ загружен из хранилища");
+            }
           }
+          // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
+          privateKeyRef.current = privateKey;
+          setKeys((prevKeys) => ({ ...prevKeys, publicKey }));
         }
-        // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
-        privateKeyRef.current = privateKey;
-        setKeys((prevKeys) => ({ ...prevKeys, publicKey }));
 
         // 3. Устанавливаем WebSocket‑соединение (если ещё не установлено)
         if (!wsRef.current) {
@@ -391,19 +391,6 @@ const Chat = () => {
 
       // 6. Логируем зашифрованное сообщение для отладки
       console.log("Зашифрованное сообщение:", encryptedMessage);
-
-      // // 7. Обрабатываем строку: обрезаем лишние пробелы с начала и конца
-      // const trimmedEncrypted = encryptedMessage.trim();
-
-      // // 9. Отправляем зашифрованное сообщение на сервер через WebSocket
-      // wsRef.current.send(
-      //   JSON.stringify({
-      //     type: "message",
-      //     encryptedMessage: trimmedEncrypted,
-      //     clientId: localStorage.getItem("clientId"),
-      //     ...(chatType === "private" && { recipientId }),
-      //   })
-      // );
       const trimmedEncrypted = messageToSend.trim();
       wsRef.current.send(
         JSON.stringify({
