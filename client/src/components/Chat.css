@@ -7,34 +7,36 @@
     flex-direction: column;
     padding: 10px;
   }
-  
-  .chat-messages {
+  .chat-type{
+    background-color: aqua;
+  }
+  .messages {
     flex: 1;
     overflow-y: auto;
     max-height: 300px;
     margin-bottom: 10px;
   }
   
-  .chat-message {
+  .message {
     padding: 8px;
     border-radius: 4px;
     margin-bottom: 5px;
     background-color: #e1f5fe;
   }
   
-  .chat-input {
+  .input-area {
     display: flex;
     gap: 10px;
   }
   
-  .chat-input input {
+  .file-input .recipient-input .text-input {
     flex: 1;
     padding: 8px;
-    border: 1px solid #ccc;
+    border: 5px solid red;
     border-radius: 4px;
   }
   
-  .chat-input button {
+  .recovery-btn .clear-btn button {
     padding: 8px 16px;
     border: none;
     background-color: #6200ee;
@@ -42,4 +44,3 @@
     border-radius: 4px;
     cursor: pointer;
   }
-  

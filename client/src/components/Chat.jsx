@@ -36,7 +36,18 @@ const Chat = () => {
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
   const passphrase = "testpass";
-
+// Расширенная версия функции decryptMessage с проверкой формата
+const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
+  // Если сообщение не похоже на PGP зашифрованное (не начинается с PGP заголовка), выбрасываем ошибку
+  if (
+    typeof encryptedMessage !== "string" ||
+    !encryptedMessage.startsWith("-----BEGIN PGP MESSAGE-----")
+  ) {
+    throw new Error("Полученное сообщение не является корректным PGP-сообщением");
+  }
+  // Вызываем оригинальную функцию decryptMessage
+  return await decryptMessage(encryptedMessage, privateKey, passphrase);
+};
   // Функция восстановления (очистки) аккаунта
   const clearUserData = async () => {
     localStorage.removeItem("clientId");
@@ -120,23 +131,11 @@ const Chat = () => {
     setConfirmedRecipientId(recipientId.trim());
     toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
   };
-  // Расширенная версия функции decryptMessage с проверкой формата
-  const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
-    // Если сообщение не похоже на PGP зашифрованное (не начинается с PGP заголовка), выбрасываем ошибку
-    if (
-      typeof encryptedMessage !== "string" ||
-      !encryptedMessage.startsWith("-----BEGIN PGP MESSAGE-----")
-    ) {
-      throw new Error("Полученное сообщение не является корректным PGP-сообщением");
-    }
-    // Вызываем оригинальную функцию decryptMessage
-    return await decryptMessage(encryptedMessage, privateKey, passphrase);
-  };
+  
   
   useEffect(() => {
     const initChat = async () => {
       try {
-        // 1. Генерация или получение уникального clientId (храним в localStorage)
         let clientId = localStorage.getItem("clientId");
         if (!clientId) {
           clientId = uuidv4();
@@ -148,10 +147,8 @@ const Chat = () => {
           toast.info(`Используется существующий clientId: ${clientId}`);
         }
 
-        // 2. Загрузка приватного ключа из IndexedDB или генерация новых ключей
         let privateKey;
         let publicKey;
-        // Запрашиваем секретную фразу у пользователя
         console.log("Используемый passphrase:", passphrase);
         try {
           privateKey = await retrievePrivateKey(passphrase);
@@ -168,7 +165,6 @@ const Chat = () => {
           privateKey = generatedKeys.privateKey;
           publicKey = generatedKeys.publicKey;
           const protectedKey = await encryptPrivateKey(privateKey, passphrase);
-          console.log(`protectedKey:: ${protectedKey}`);
           await storePrivateKey(protectedKey);
           console.log("Ключи сгенерированы и сохранены");
           toast.success("Ключи сгенерированы и сохранены");
@@ -354,11 +350,11 @@ const Chat = () => {
                     return;
                   }
                 } else {
-                  // Групповой чат: сообщение передаётся в открытом виде
                   fileData = data.encryptedFile;
                 }
               } catch (error) {
                 console.error(`Ошибка обработки файла`);
+                toast.error("Ошибка обработки файла");
               }
             }
           } catch (err) {
@@ -485,6 +481,7 @@ const Chat = () => {
           encryptionKeys: await openpgp.readKey({
             armoredKey: keys.recipientPublicKey,
           }),
+          armor: true, 
         });
       } else {
         encryptedFile = fileBuffer;
