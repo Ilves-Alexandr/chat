@@ -141,7 +141,7 @@ wss.on("connection", (ws) => {
         );
       }
       // Обработка текстовых сообщений
-      else if (type === "message") {
+      else if (type === "message" || type === "file") {
         const timestamp = formatTime();
         const messageData = JSON.stringify({
           clientId,

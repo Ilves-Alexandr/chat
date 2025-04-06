@@ -13,14 +13,13 @@ import {
   encryptPrivateKey,
   decryptPrivateKey,
 } from "../utils/cryptoProtection";
-import { sha256 } from "js-sha256"; // Пока не используется
+// import { sha256 } from "js-sha256"; // Пока не используется
 import VideoChat from "./VideoChat";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import "./Chat.css"; // Стили для адаптивного дизайна и анимаций
+import "./Chat.css";
 
 const Chat = () => {
-  // Состояния для хранения сообщений, текста ввода, выбранного файла и ключей
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
@@ -36,25 +35,21 @@ const Chat = () => {
   // useRef для хранения приватного ключа и WebSocket‑соединения без перерендеринга
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
+  const passphrase = "testpass";
 
   // Функция восстановления (очистки) аккаунта
   const clearUserData = async () => {
-    // 1. Удаляем clientId из localStorage
     localStorage.removeItem("clientId");
     toast.info("ClientId удалён из LocalStorage");
-
-    // 2. Удаляем только запись с приватным ключом из IndexedDB
     try {
       const db = await initializeDB();
       const transaction = db.transaction("keys", "readwrite");
       const store = transaction.objectStore("keys");
       const request = store.delete("privateKey");
-
       request.onsuccess = () => {
         console.log("Приватный ключ удалён из IndexedDB");
         toast.info("Приватный ключ удалён из IndexedDB");
       };
-
       request.onerror = (e) => {
         console.error(
           "Ошибка удаления приватного ключа из IndexedDB:",
@@ -66,8 +61,6 @@ const Chat = () => {
       console.error("Ошибка при открытии IndexedDB:", error);
       toast.error("Ошибка при доступе к IndexedDB");
     }
-
-    // 3. Вызов API для удаления пользовательских данных из Redis
     try {
       const clientId = localStorage.getItem("clientId") || "текущий clientId";
       const response = await fetch(`/api/clearUserData?clientId=${clientId}`, {
@@ -101,7 +94,6 @@ const Chat = () => {
 
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
-    const passphrase = "testpass";
     try {
       const storedKey = await retrievePrivateKey(passphrase);
       if (!storedKey) {
@@ -128,6 +120,70 @@ const Chat = () => {
     setConfirmedRecipientId(recipientId.trim());
     toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
   };
+  // Функция отправки файла с шифрованием
+  const sendFile = async () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket не подключен");
+      toast.error("WebSocket не подключен");
+      return;
+    }
+    if (!file) {
+      toast.error("Файл не выбран");
+      return;
+    }
+    if (chatType === "private" && !keys.recipientPublicKey) {
+      toast.error("Публичный ключ получателя отсутствует");
+      return;
+    }
+    try {
+      // Чтение файла как ArrayBuffer
+      const fileBuffer = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+      });
+
+      // Создаем сообщение для шифрования файла.
+      // Используем свойство binary для работы с бинарными данными.
+      let encryptedFile;
+      if (chatType === "private") {
+        encryptedFile = await openpgp.encrypt({
+          message: await openpgp.createMessage({
+            binary: new Uint8Array(fileBuffer),
+          }),
+          encryptionKeys: await openpgp.readKey({
+            armoredKey: keys.recipientPublicKey,
+          }),
+        });
+      } else {
+        // В групповом чате можно передавать файл без шифрования (если это требуется)
+        encryptedFile = fileBuffer; // либо преобразовать в base64 строку
+      }
+
+      // Формируем объект сообщения с метаданными файла
+      const fileMessage = {
+        type: "file",
+        clientId: localStorage.getItem("clientId"),
+        fileName: file.name,
+        fileType: file.type,
+        encryptedFile, // если шифруем, это строка, иначе - бинарные данные или base64 строка
+        recipientId: chatType === "private" ? confirmedRecipientId : undefined,
+        timestamp: new Date().toISOString(),
+      };
+
+      wsRef.current.send(JSON.stringify(fileMessage));
+      setMessages((prev) => [
+        ...prev,
+        { userId: "Вы", text: `Файл "${file.name}" отправлен` },
+      ]);
+      setFile(null);
+      toast.success("Файл отправлен");
+    } catch (err) {
+      console.error("Ошибка отправки файла:", err);
+      toast.error("Ошибка отправки файла");
+    }
+  };
   useEffect(() => {
     const initChat = async () => {
       try {
@@ -147,7 +203,6 @@ const Chat = () => {
         let privateKey;
         let publicKey;
         // Запрашиваем секретную фразу у пользователя
-        const passphrase = "testpass";
         console.log("Используемый passphrase:", passphrase);
         try {
           privateKey = await retrievePrivateKey(passphrase);
@@ -233,8 +288,6 @@ const Chat = () => {
           privateKeyRef.current = privateKey;
           setKeys((prevKeys) => ({ ...prevKeys, publicKey }));
         }
-
-        // 3. Устанавливаем WebSocket‑соединение (если ещё не установлено)
         if (!wsRef.current) {
           console.log("Инициализация WebSocket-соединения...");
           const wsUrl =
@@ -260,9 +313,6 @@ const Chat = () => {
             console.error("Отсутствует clientId или publicKey");
           }
         };
-
-        const currentClientId = localStorage.getItem("clientId");
-        // 4. Обработка входящих сообщений от сервера
         wsRef.current.onmessage = async (event) => {
           try {
             let data = event.data;
@@ -289,32 +339,82 @@ const Chat = () => {
               } catch (err) {
                 console.error("Ошибка обработки ключа:", err.message);
               }
-            }
-            // Если это сообщение – пытаемся его расшифровать
-            else if (data.type === "message") {
+            } else if (data.type === "message") {
               let text;
-              // Если поле recipientId присутствует, это приватное сообщение
-              if (data.recipientId) {
-                // Проверяем, что сообщение предназначено для текущего клиента
-                if (data.recipientId === currentClientId) {
-                  text = await decryptMessage(
-                    data.encryptedMessage,
-                    privateKeyRef.current,
-                    "testpass" // или другой способ получения passphrase
-                  );
+              try {
+                // Если поле recipientId присутствует, это приватное сообщение
+                if (data.recipientId) {
+                  // Проверяем, что сообщение предназначено для текущего клиента
+                  if (data.recipientId === clientId) {
+                    text = await decryptMessage(
+                      data.encryptedMessage,
+                      privateKeyRef.current,
+                      passphrase
+                    );
+                  } else {
+                    // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
+                    console.log(
+                      "Приватное сообщение не для этого клиента, оно адресовано:",
+                      data.recipientId
+                    );
+                    return;
+                  }
                 } else {
-                  // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
-                  console.log(
-                    "Приватное сообщение не для этого клиента, оно адресовано:",
-                    data.recipientId
-                  );
-                  return;
+                  // Групповой чат: сообщение передаётся в открытом виде
+                  text = data.encryptedMessage;
                 }
-              } else {
-                // Групповой чат: сообщение передаётся в открытом виде
-                text = data.encryptedMessage;
+                setMessages((prev) => [
+                  ...prev,
+                  { userId: data.clientId, text },
+                ]);
+              } catch (error) {
+                console.error("Ошибка обработки сообщения", error);
+                toast.error("Ошибка обработки сообщения");
               }
-              setMessages((prev) => [...prev, { userId: data.clientId, text }]);
+            } else if (data.type === "file") {
+              // Обработка входящего зашифрованного файла
+              let fileData;
+              try {
+                if (data.recipientId) {
+                  // Проверяем, что сообщение предназначено для текущего клиента
+                  if (data.recipientId === clientId) {
+                    fileData = await decryptMessage(
+                      data.encryptedFile,
+                      privateKeyRef.current,
+                      passphrase
+                    );
+                    // Здесь можно создать Blob и отобразить ссылку для скачивания:
+                    const blob = new Blob([new Uint8Array(fileData)], {
+                      type: data.fileType,
+                    });
+                    const fileUrl = URL.createObjectURL(blob);
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        userId: data.clientId,
+                        text: `Файл "${data.fileName}" получен. `,
+                        fileUrl,
+                      },
+                    ]);
+                  } else {
+                    // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
+                    console.log(
+                      "Приватный файл не для этого клиента, оно адресовано:",
+                      data.recipientId
+                    );
+                    return;
+                  }
+                } else {
+                  // Групповой чат: сообщение передаётся в открытом виде
+                  fileData = data.encryptedFile;
+                }
+                setMessages((prev) => [
+                  ...prev,
+                  { userId: data.clientId, fileData },
+                ]);
+              } catch (error) {
+                console.error(`Ошибка обработки файла`);
+              }
             }
           } catch (err) {
             console.error("Ошибка обработки входящего сообщения:", err.message);
@@ -350,7 +450,6 @@ const Chat = () => {
 
   // Функция отправки сообщения (текстового)
   const sendMessage = async (message) => {
-    // 1. Проверяем, что WebSocket-соединение активно
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket не подключен");
       toast.error("WebSocket не подключен");
@@ -377,8 +476,6 @@ const Chat = () => {
         return;
       }
     }
-
-    // 3. Если сообщение не является строкой, пытаемся его преобразовать
     if (typeof message !== "string") {
       try {
         message = JSON.stringify(message);
@@ -389,8 +486,6 @@ const Chat = () => {
         return;
       }
     }
-    
-    // 4. Проверяем, что строка не пуста (обязательно вызываем trim)
     if (message.trim() === "") {
       console.error("Сообщение пустое");
       toast.error("Сообщение пустое");
@@ -408,7 +503,6 @@ const Chat = () => {
           ...(chatType === "private" && { recipientId: confirmedRecipientId }),
         })
       );
-      // 10. Локально добавляем отправленное сообщение в историю (для мгновенного отображения отправителем)
       setMessages((prev) => [...prev, { userId: "Вы", text: message }]);
       setInput("");
       toast.success("Сообщение отправлено");
@@ -480,6 +574,11 @@ const Chat = () => {
         {messages.map((msg, index) => (
           <p key={index} className="message">
             <strong>{msg.userId}:</strong> {msg.text}
+            {msg.fileUrl && (
+              <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+                Скачать файл
+              </a>
+            )}
           </p>
         ))}
       </div>
@@ -498,6 +597,9 @@ const Chat = () => {
           disabled={chatType === "private" && !confirmedRecipientId}
         >
           Отправить
+        </button>
+        <button onClick={sendFile} disabled={!file}>
+          Отправить файл
         </button>
       </div>
       {/* Компонент видеозвонков */}
