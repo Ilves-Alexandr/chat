@@ -203,13 +203,7 @@ wss.on("connection", (ws) => {
 redisSub.subscribe("chat", (message) => {
   try {
     const parsedMessage = JSON.parse(message);
-    broadcastMessage({
-      type: "message",
-      clientId: parsedMessage.clientId,
-      encryptedMessage: parsedMessage.encryptedMessage,
-      timestamp: parsedMessage.timestamp,
-      recipientId: parsedMessage.recipientId,
-    });
+    broadcastMessage(parsedMessage);
   } catch (err) {
     console.error("Ошибка парсинга сообщения из Redis:", err.message);
   }
