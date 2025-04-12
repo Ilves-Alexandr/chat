@@ -259,7 +259,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                       privateKeyRef.current,
                       passphrase
                     );
-                    // Здесь можно создать Blob и отобразить ссылку для скачивания:
                     const blob = new Blob([new Uint8Array(fileData)], {
                       type: data.fileType,
                     });
@@ -273,7 +272,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                       },
                     ]);
                   } else {
-                    // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
                     console.log(
                       "Приватный файл не для этого клиента, оно адресовано:",
                       data.recipientId

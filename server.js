@@ -141,30 +141,49 @@ wss.on("connection", (ws) => {
         );
       }
       // Обработка текстовых сообщений
-      else if (type === "message" || type === "file") {
+      else if (type === "message") {
         const timestamp = formatTime();
         const messageData = JSON.stringify({
           clientId,
-          encryptedMessage,
+          encryptedMessage, // для текстовых сообщений
           timestamp,
           recipientId
         });
-         // Если recipientId указан – это приватное сообщение
-         if (recipientId) {
+        if (recipientId) {
           wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN && client.clientId === recipientId) {
               client.send(messageData);
             }
           });
         } else {
-          // Групповой чат – рассылаем всем
           broadcastMessage({ clientId, encryptedMessage, timestamp });
         }
-        // Сохраняем сообщение в Redis (список сообщений) и публикуем в канал "chat"
         await redisPub.rPush("chat:messages", messageData);
         redisPub.publish("chat", messageData);
       }
-      // Добавить обработку других типов сообщений, например, video_signal для видеозвонков
+      // Обработка файловых сообщений
+      else if (type === "file") {
+        const timestamp = formatTime();
+        const fileMessageData = JSON.stringify({
+          clientId,
+          encryptedFile,  // оставляем поле encryptedFile без изменений
+          fileName,
+          fileType,
+          timestamp,
+          recipientId
+        });
+        if (recipientId) {
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN && client.clientId === recipientId) {
+              client.send(fileMessageData);
+            }
+          });
+        } else {
+          broadcastMessage({ clientId, encryptedFile, fileName, fileType, timestamp });
+        }
+        await redisPub.rPush("chat:messages", fileMessageData);
+        redisPub.publish("chat", fileMessageData);
+      }
     } catch (err) {
       console.error("Ошибка обработки сообщения:", err.message);
       ws.send(
