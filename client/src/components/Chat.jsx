@@ -37,8 +37,8 @@ const Chat = () => {
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
   const passphrase = "testpass";
-   // Функция для подтверждения введённого идентификатора собеседника
-   const confirmRecipient = () => {
+  // Функция для подтверждения введённого идентификатора собеседника
+  const confirmRecipient = () => {
     if (!recipientId.trim()) {
       toast.error("Введите корректный идентификатор собеседника");
       return;
@@ -46,16 +46,22 @@ const Chat = () => {
     setConfirmedRecipientId(recipientId.trim());
     toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
   };
-  
-const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
-  if (
-    typeof encryptedMessage !== "string" ||
-    !encryptedMessage.startsWith("-----BEGIN PGP MESSAGE-----")
-  ) {
-    throw new Error("Полученное сообщение не является корректным PGP-сообщением");
-  }
-  return await decryptMessage(encryptedMessage, privateKey, passphrase);
-};
+
+  const safeDecryptMessage = async (
+    encryptedMessage,
+    privateKey,
+    passphrase
+  ) => {
+    if (
+      typeof encryptedMessage !== "string" ||
+      !encryptedMessage.startsWith("-----BEGIN PGP MESSAGE-----")
+    ) {
+      throw new Error(
+        "Полученное сообщение не является корректным PGP-сообщением"
+      );
+    }
+    return await decryptMessage(encryptedMessage, privateKey, passphrase);
+  };
   // Функция восстановления (очистки) аккаунта
   const clearUserData = async () => {
     localStorage.removeItem("clientId");
@@ -252,35 +258,23 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
             } else if (data.type === "file") {
               let fileData;
               try {
-                if (data.recipientId) {
-                  if (data.recipientId === clientId) {
-                    fileData = await decryptFile(
-                      data.encryptedFile,
-                      privateKeyRef.current,
-                      passphrase
-                    );
-                    const blob = new Blob([new Uint8Array(fileData)], {
-                      type: data.fileType,
-                    });
-                    const fileUrl = URL.createObjectURL(blob);
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        userId: data.clientId,
-                        text: `Файл "${data.fileName}" получен. `,
-                        fileUrl,
-                      },
-                    ]);
-                  } else {
-                    console.log(
-                      "Приватный файл не для этого клиента, оно адресовано:",
-                      data.recipientId
-                    );
-                    return;
-                  }
-                } else {
-                  fileData = data.encryptedFile;
-                }
+                  fileData = await decryptFile(
+                    data.encryptedFile,
+                    privateKeyRef.current,
+                    passphrase
+                  );
+                  const blob = new Blob([new Uint8Array(fileData)], {
+                    type: data.fileType,
+                  });
+                  const fileUrl = URL.createObjectURL(blob);
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      userId: data.clientId,
+                      text: `Файл "${data.fileName}" получен. `,
+                      fileUrl,
+                    },
+                  ]);
               } catch (error) {
                 console.error(`Ошибка обработки файла`);
                 toast.error("Ошибка обработки файла");
@@ -397,7 +391,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         reader.onerror = (err) => reject(err);
         reader.readAsArrayBuffer(file);
       });
-      let encryptedFile
+      let encryptedFile;
       if (chatType === "private") {
         encryptedFile = await openpgp.encrypt({
           message: await openpgp.createMessage({
@@ -406,7 +400,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           encryptionKeys: await openpgp.readKey({
             armoredKey: keys.recipientPublicKey,
           }),
-          format: 'armored', 
+          format: "armored",
         });
       } else {
         encryptedFile = fileBuffer;
@@ -416,7 +410,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         clientId: localStorage.getItem("clientId"),
         fileName: file.name,
         fileType: file.type,
-        encryptedFile, 
+        encryptedFile,
         recipientId: chatType === "private" ? confirmedRecipientId : undefined,
         timestamp: new Date().toISOString(),
       };
