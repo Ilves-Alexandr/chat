@@ -5,6 +5,7 @@ import {
   generateKeys,
   encryptMessage,
   decryptMessage,
+  decryptFile,
   storePrivateKey,
   retrievePrivateKey,
   initializeDB,
@@ -263,8 +264,8 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                 if (data.recipientId) {
                   // Проверяем, что сообщение предназначено для текущего клиента
                   if (data.recipientId === clientId) {
-                    fileData = await safeDecryptMessage(
-                      data.encryptedMessage,
+                    fileData = await decryptFile(
+                      data.encryptedFile,
                       privateKeyRef.current,
                       passphrase
                     );
@@ -290,7 +291,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                     return;
                   }
                 } else {
-                  fileData = data.encryptedMessage;
+                  fileData = data.encryptedFile;
                 }
               } catch (error) {
                 console.error(`Ошибка обработки файла`);

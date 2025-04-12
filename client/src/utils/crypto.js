@@ -40,6 +40,32 @@ export const decryptMessage = async (encryptedMessage, privateKey, passphrase) =
   });
   return decrypted.data;
 };
+export const decryptFile = async (encryptedFile, privateKey, passphrase) => {
+  // Читаем приватный ключ
+  const privKey = await openpgp.readPrivateKey({ armoredKey: privateKey });
+  // Если ключ зашифрован, расшифровываем его
+  let decryptionKey;
+  try {
+    decryptionKey = await openpgp.decryptKey({
+      privateKey: privKey,
+      passphrase,
+    });
+  } catch (error) {
+    console.warn("Ключ, возможно, уже расшифрован:", error);
+    decryptionKey = privKey;
+  }
+  // Читаем зашифрованное сообщение
+  const message = await openpgp.readMessage({
+    armoredMessage: encryptedFile,
+  });
+  // Дешифруем сообщение в бинарном формате
+  const decrypted = await openpgp.decrypt({
+    message,
+    decryptionKeys: decryptionKey,
+    format: "binary", // возвращаем бинарные данные
+  });
+  return decrypted.data; // будет Uint8Array
+};
 // 📌 Инициализация базы данных IndexedDB для хранения приватных ключей
 export const initializeDB = () => {
   return new Promise((resolve, reject) => {
