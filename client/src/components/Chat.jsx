@@ -108,7 +108,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       "Данные пользователя очищены. Перезагрузите страницу для повторной генерации ключей."
     );
   };
-
   // Функция для восстановления доступа к аккаунту (очистка ключей и clientId)
   const recoverAccount = async () => {
     try {
@@ -128,8 +127,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       toast.error("Ошибка восстановления аккаунта");
     }
   };
- 
-  
   useEffect(() => {
     const initChat = async () => {
       try {
@@ -143,7 +140,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           console.log("Используется существующий clientId:", clientId);
           toast.info(`Используется существующий clientId: ${clientId}`);
         }
-
         let privateKey;
         let publicKey;
         console.log("Используемый passphrase:", passphrase);
@@ -228,9 +224,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
             } else if (data.type === "message") {
               let text;
               try {
-                // Если поле recipientId присутствует, это приватное сообщение
                 if (data.recipientId) {
-                  // Проверяем, что сообщение предназначено для текущего клиента
                   if (data.recipientId === clientId) {
                     text = await safeDecryptMessage(
                       data.encryptedMessage,
@@ -238,7 +232,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                       passphrase
                     );
                   } else {
-                    // Если сообщение не для вас — можно его проигнорировать или обработать по-другому
                     console.log(
                       "Приватное сообщение не для этого клиента, оно адресовано:",
                       data.recipientId
@@ -246,7 +239,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                     return;
                   }
                 } else {
-                  // Групповой чат: сообщение передаётся в открытом виде
                   text = data.encryptedMessage;
                 }
                 setMessages((prev) => [
@@ -258,11 +250,9 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                 toast.error("Ошибка обработки сообщения");
               }
             } else if (data.type === "file") {
-              // Обработка входящего зашифрованного файла
               let fileData;
               try {
                 if (data.recipientId) {
-                  // Проверяем, что сообщение предназначено для текущего клиента
                   if (data.recipientId === clientId) {
                     fileData = await decryptFile(
                       data.encryptedFile,
@@ -328,7 +318,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
     };
   }, [passphrase, chatType]);
 
-  // Функция отправки сообщения (текстового)
   const sendMessage = async (message) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket не подключен");
@@ -338,7 +327,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
 
     let messageToSend = message;
     if (chatType === "private") {
-      // Если приватный чат – шифруем сообщение
       if (!keys.recipientPublicKey) {
         console.error("Публичный ключ получателя отсутствует");
         toast.error("Публичный ключ получателя отсутствует");
@@ -390,7 +378,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       toast.error("Ошибка отправки сообщения");
     }
   };
-  // Функция отправки файла с шифрованием
   const sendFile = async () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket не подключен");
@@ -406,16 +393,15 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       return;
     }
     try {
-      // Чтение файла как ArrayBuffer
       const fileBuffer = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
         reader.onerror = (err) => reject(err);
         reader.readAsArrayBuffer(file);
       });
-      let encryptedMessage;
+      let encryptedFile
       if (chatType === "private") {
-        encryptedMessage = await openpgp.encrypt({
+        encryptedFile = await openpgp.encrypt({
           message: await openpgp.createMessage({
             binary: new Uint8Array(fileBuffer),
           }),
@@ -425,16 +411,14 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           format: 'armored', 
         });
       } else {
-        encryptedMessage = fileBuffer;
+        encryptedFile = fileBuffer;
       }
-
-      // Формируем объект сообщения с метаданными файла
       const fileMessage = {
         type: "file",
         clientId: localStorage.getItem("clientId"),
         fileName: file.name,
         fileType: file.type,
-        encryptedMessage, 
+        encryptedFile, 
         recipientId: chatType === "private" ? confirmedRecipientId : undefined,
         timestamp: new Date().toISOString(),
       };
@@ -451,7 +435,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       toast.error("Ошибка отправки файла");
     }
   };
-  // Обработчик выбора файла (если потребуется отправка файла)
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
