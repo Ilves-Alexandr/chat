@@ -165,60 +165,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           await storePrivateKey(protectedKey);
           console.log("Ключи сгенерированы и сохранены");
           toast.success("Ключи сгенерированы и сохранены");
-          // if (!privateKey) {
-          //   // Если ключ не найден – генерируем новую пару ключей
-          //   const generatedKeys = await generateKeys(passphrase);
-          //   privateKey = generatedKeys.privateKey;
-          //   publicKey = generatedKeys.publicKey;
-          //   // Шифруем приватный ключ перед сохранением
-          //   const protectedKey = await encryptPrivateKey(
-          //     privateKey,
-          //     passphrase
-          //   );
-          //   console.log(`protectedKey:: ${protectedKey}`);
-
-          //   await storePrivateKey(protectedKey);
-          //   console.log("Ключи сгенерированы и сохранены");
-          //   toast.success("Ключи сгенерированы и сохранены");
-          // } else {
-          //   // Если ключ найден, проверяем его формат:
-          //   // если строка содержит разделитель ":", считаем, что ключ зашифрован,
-          //   // иначе – не защищён (в целях совместимости)
-          //   if (privateKey.includes(":")) {
-          //     const protectedKey = privateKey;
-          //     const parts = protectedKey.split(":");
-          //     console.log("Protected key parts:", parts);
-          //     if (parts.length !== 3) {
-          //       console.error(
-          //         "Зашифрованный ключ должен содержать три части: соль, IV и зашифрованные данные"
-          //       );
-          //       toast.error("Неверный формат зашифрованного ключа");
-          //       return;
-          //     }
-          //     try {
-          //       privateKey = await decryptPrivateKey(protectedKey, passphrase);
-          //       console.log(
-          //         "Приватный ключ дешифрован из хранилища",
-          //         privateKey
-          //       );
-          //     } catch (err) {
-          //       console.error("Ошибка дешифровки приватного ключа:", err);
-          //       toast.error("Ошибка дешифровки приватного ключа");
-          //       return; // Прерываем инициализацию, если не удалось расшифровать
-          //     }
-          //   } else {
-          //     console.log("Приватный ключ загружен из хранилища (без защиты)");
-          //   }
-          //   if (!publicKey) {
-          //     const extractedKey = await openpgp.readKey({
-          //       armoredKey: privateKey,
-          //     });
-          //     publicKey = extractedKey.toPublic().armor();
-          //     console.log("Извлечённый публичный ключ:", publicKey);
-          //     toast.success("Приватный ключ загружен из хранилища");
-          //   }
-          // }
-          // Сохраняем приватный ключ в useRef и обновляем состояние с публичным ключом
           if (!publicKey) {
             const extractedKey = await openpgp.readKey({
               armoredKey: privateKey,
@@ -318,7 +264,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                   // Проверяем, что сообщение предназначено для текущего клиента
                   if (data.recipientId === clientId) {
                     fileData = await safeDecryptMessage(
-                      data.encryptedFile,
+                      data.encryptedMessage,
                       privateKeyRef.current,
                       passphrase
                     );
@@ -344,7 +290,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
                     return;
                   }
                 } else {
-                  fileData = data.encryptedFile;
+                  fileData = data.encryptedMessage;
                 }
               } catch (error) {
                 console.error(`Ошибка обработки файла`);
@@ -466,9 +412,9 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         reader.onerror = (err) => reject(err);
         reader.readAsArrayBuffer(file);
       });
-      let encryptedFile;
+      let encryptedMessage;
       if (chatType === "private") {
-        encryptedFile = await openpgp.encrypt({
+        encryptedMessage = await openpgp.encrypt({
           message: await openpgp.createMessage({
             binary: new Uint8Array(fileBuffer),
           }),
@@ -478,7 +424,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           format: 'armored', 
         });
       } else {
-        encryptedFile = fileBuffer;
+        encryptedMessage = fileBuffer;
       }
 
       // Формируем объект сообщения с метаданными файла
@@ -487,7 +433,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         clientId: localStorage.getItem("clientId"),
         fileName: file.name,
         fileType: file.type,
-        encryptedFile, 
+        encryptedMessage, 
         recipientId: chatType === "private" ? confirmedRecipientId : undefined,
         timestamp: new Date().toISOString(),
       };
