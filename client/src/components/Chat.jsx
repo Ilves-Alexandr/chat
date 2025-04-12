@@ -11,6 +11,7 @@ import {
   initializeDB,
 } from "../utils/crypto";
 import {
+  arrayBufferToBase64,
   encryptPrivateKey,
   decryptPrivateKey,
 } from "../utils/cryptoProtection";
@@ -258,23 +259,34 @@ const Chat = () => {
             } else if (data.type === "file") {
               let fileData;
               try {
+                if (
+                  typeof data.encryptedFile === "string" &&
+                  data.encryptedFile.startsWith("-----BEGIN PGP MESSAGE-----")
+                ) {
                   fileData = await decryptFile(
                     data.encryptedFile,
                     privateKeyRef.current,
                     passphrase
                   );
-                  const blob = new Blob([new Uint8Array(fileData)], {
-                    type: data.fileType,
-                  });
-                  const fileUrl = URL.createObjectURL(blob);
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      userId: data.clientId,
-                      text: `Файл "${data.fileName}" получен. `,
-                      fileUrl,
-                    },
-                  ]);
+                } else {
+                  const {
+                    base64ToArrayBuffer,
+                  } = require("../utils/cryptoProtection");
+                  const buffer = base64ToArrayBuffer(data.encryptedFile);
+                  fileData = new Uint8Array(buffer);
+                }
+                const blob = new Blob([fileData], {
+                  type: data.fileType,
+                });
+                const fileUrl = URL.createObjectURL(blob);
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    userId: data.clientId,
+                    text: `Файл "${data.fileName}" получен. `,
+                    fileUrl,
+                  },
+                ]);
               } catch (error) {
                 console.error(`Ошибка обработки файла`);
                 toast.error("Ошибка обработки файла");
@@ -403,7 +415,7 @@ const Chat = () => {
           format: "armored",
         });
       } else {
-        encryptedFile = fileBuffer;
+        encryptedFile = arrayBufferToBase64(fileBuffer);
       }
       const fileMessage = {
         type: "file",
