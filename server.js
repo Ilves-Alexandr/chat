@@ -87,7 +87,7 @@ wss.on("connection", (ws) => {
   ws.on("message", async (data) => {
     try {
       const parsedData = JSON.parse(data.toString());
-      const { clientId, publicKey, type, encryptedMessage, recipientId } = parsedData;
+      const { clientId, publicKey, type, encryptedMessage, encryptedFile, fileName, fileType, recipientId } = parsedData;
       // Проверка clientId на наличие и корректность UUID
       if (!clientId || !isUuid(clientId)) {
         ws.send(
@@ -166,7 +166,7 @@ wss.on("connection", (ws) => {
         const timestamp = formatTime();
         const fileMessageData = JSON.stringify({
           clientId,
-          encryptedFile,  // оставляем поле encryptedFile без изменений
+          encryptedFile,
           fileName,
           fileType,
           timestamp,
