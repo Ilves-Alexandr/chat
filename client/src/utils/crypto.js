@@ -9,69 +9,67 @@ export const generateKeys = async (passphrase) => {
   return { privateKey, publicKey }; // Возвращаем сгенерированные ключи
 };
 
-// 📌 Функция для шифрования сообщения с использованием публичного ключа получателя
+// Функция для шифрования сообщения с использованием публичного ключа получателя
 export const encryptMessage = async (message, publicKey) => {
+  const pgpMessage = await openpgp.createMessage({ text: message });
+  const pubKey = await openpgp.readKey({ armoredKey: publicKey });
   const encrypted = await openpgp.encrypt({
-    message: await openpgp.createMessage({ text: message }), // Создаём объект сообщения
-    encryptionKeys: await openpgp.readKey({ armoredKey: publicKey }), // Загружаем публичный ключ
+    message: pgpMessage,
+    encryptionKeys: pubKey,
+    format: "armored",
   });
-  return encrypted; // Возвращаем зашифрованное сообщение
+  return encrypted;
 };
 
-// 📌 Функция для расшифровки сообщения с использованием приватного ключа
-export const decryptMessage = async (
-  encryptedMessage,
-  privateKey,
-  passphrase
-) => {
-  console.log("Полученное сообщение:", encryptedMessage);
-  console.log("Приватный ключ:", privateKey);
-  console.log("Парольная фраза (если есть):", passphrase);
-  const decryptedPrivateKey = await openpgp.decryptKey({
-    privateKey: await openpgp.readPrivateKey({ armoredKey: privateKey }),
-    passphrase,
-  });
+// Функция для расшифровки сообщения с использованием приватного ключа
+export const decryptMessage = async (encryptedMessage, privateKey, passphrase) => {
+  const privKey = await openpgp.readPrivateKey({ armoredKey: privateKey });
+  let decryptionKey;
+  try {
+    // Пытаемся расшифровать ключ, если он ещё зашифрован
+    decryptionKey = await openpgp.decryptKey({ privateKey: privKey, passphrase });
+  } catch (error) {
+    // Если возникает ошибка, можно предположить, что ключ уже расшифрован
+    console.log("Ключ, возможно, уже расшифрован:", error);
+    decryptionKey = privKey;
+  }
+  const message = await openpgp.readMessage({ armoredMessage: encryptedMessage });
   const decrypted = await openpgp.decrypt({
-    message: await openpgp.readMessage({ armoredMessage: encryptedMessage }),
-    decryptionKeys: decryptedPrivateKey,
+    message,
+    decryptionKeys: decryptionKey,
   });
-  console.log(`decrypted.data::${decrypted.data}`);
-  return decrypted.data; // Возвращаем расшифрованное сообщение
+  return decrypted.data;
 };
 // 📌 Инициализация базы данных IndexedDB для хранения приватных ключей
 export const initializeDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("chatAppDB", 1); // Открываем базу данных 'chatAppDB' версии 1
-
+    const request = indexedDB.open("chatAppDB", 1);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("keys")) {
-        // Создаём хранилище для ключей
-        db.createObjectStore("keys", { keyPath: "id" }); // Создаём хранилище объектов "keys"
+        db.createObjectStore("keys", { keyPath: "id" });
       }
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result); // Успешное открытие базы данных
+      resolve(event.target.result);
     };
 
     request.onerror = (event) => {
-      reject(event.target.error); // Ошибка при открытии базы
+      reject(event.target.error);
     };
   });
 };
 // 📌 Функция для сохранения приватного ключа в IndexedDB
 export const storePrivateKey = async (privateKey) => {
-  const db = await initializeDB(); // Инициализируем базу
+  const db = await initializeDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("keys", "readwrite"); // Открываем транзакцию для записи
     const store = transaction.objectStore("keys"); // Доступ к хранилищу
     const request = store.put({ id: "privateKey", key: privateKey }); // Сохраняем приватный ключ
-
     request.onsuccess = () => {
       resolve();
     };
-
     request.onerror = (event) => {
       reject(event.target.error);
     };
@@ -81,11 +79,11 @@ export const storePrivateKey = async (privateKey) => {
 export const retrievePrivateKey = async (passphrase) => {
   console.log("Переданный passphrase для дешифровки:", passphrase);
   const db = await initializeDB();
-  console.log(`await initializeDB()::${db}`);
+  console.dir(`await initializeDB()::${db}`);
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction("keys", "readonly"); // Открываем транзакцию только для чтения
+    const transaction = db.transaction("keys", "readonly");
     const store = transaction.objectStore("keys");
-    const request = store.get("privateKey"); // Достаём ключ по ID
+    const request = store.get("privateKey");
     console.log("Попытка загрузить приватный ключ из IndexedDB...");
     request.onsuccess = async () => {
       if (!request.result) {
@@ -96,15 +94,13 @@ export const retrievePrivateKey = async (passphrase) => {
       console.log("Найден зашифрованный ключ:", request.result.key);
       try {
         console.log("Используемый passphrase перед дешифровкой:", passphrase);
-        const decryptedPrivateKey = await openpgp.decryptKey({
-          privateKey: await openpgp.readPrivateKey({
-            armoredKey: request.result.key,
-          }),
-          passphrase,
+        const privKey = await openpgp.readPrivateKey({
+          armoredKey: request.result.key,
         });
+        const decryptedPrivKey = await openpgp.decryptKey({ privateKey: privKey, passphrase });
         console.log("Дешифрованный приватный ключ успешно получен.");
-        console.log("retrievePrivateKey - Расшифрованный ключ:", decryptedPrivateKey.armor());
-        resolve(decryptedPrivateKey.armor());
+        console.log("retrievePrivateKey - Расшифрованный ключ:", decryptedPrivKey.armor());
+        resolve(decryptedPrivKey.armor());
       } catch (error) {
         console.error("Ошибка дешифровки приватного ключа. Возможно, неверная passphrase?", error);
         reject("Ошибка расшифровки приватного ключа. Неверный passphrase?");

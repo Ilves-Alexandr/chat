@@ -36,16 +36,23 @@ const Chat = () => {
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
   const passphrase = "testpass";
-// Расширенная версия функции decryptMessage с проверкой формата
+   // Функция для подтверждения введённого идентификатора собеседника
+   const confirmRecipient = () => {
+    if (!recipientId.trim()) {
+      toast.error("Введите корректный идентификатор собеседника");
+      return;
+    }
+    setConfirmedRecipientId(recipientId.trim());
+    toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
+  };
+  
 const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
-  // Если сообщение не похоже на PGP зашифрованное (не начинается с PGP заголовка), выбрасываем ошибку
   if (
     typeof encryptedMessage !== "string" ||
     !encryptedMessage.startsWith("-----BEGIN PGP MESSAGE-----")
   ) {
     throw new Error("Полученное сообщение не является корректным PGP-сообщением");
   }
-  // Вызываем оригинальную функцию decryptMessage
   return await decryptMessage(encryptedMessage, privateKey, passphrase);
 };
   // Функция восстановления (очистки) аккаунта
@@ -96,8 +103,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
     setFile(null);
     setRecipientId("");
     setConfirmedRecipientId("");
-
-    // 5. Сообщаем пользователю о необходимости перезагрузить страницу
     toast.info(
       "Данные пользователя очищены. Перезагрузите страницу для повторной генерации ключей."
     );
@@ -122,16 +127,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
       toast.error("Ошибка восстановления аккаунта");
     }
   };
-  // Функция для подтверждения введённого идентификатора собеседника
-  const confirmRecipient = () => {
-    if (!recipientId.trim()) {
-      toast.error("Введите корректный идентификатор собеседника");
-      return;
-    }
-    setConfirmedRecipientId(recipientId.trim());
-    toast.success(`Получатель подтверждён: ${recipientId.trim()}`);
-  };
-  
+ 
   
   useEffect(() => {
     const initChat = async () => {
@@ -165,6 +161,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           privateKey = generatedKeys.privateKey;
           publicKey = generatedKeys.publicKey;
           const protectedKey = await encryptPrivateKey(privateKey, passphrase);
+          console.log(`protectedKey:: ${protectedKey}`);
           await storePrivateKey(protectedKey);
           console.log("Ключи сгенерированы и сохранены");
           toast.success("Ключи сгенерированы и сохранены");
@@ -245,7 +242,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         wsRef.current.onopen = () => {
           console.log("WebSocket подключен");
           if (clientId && publicKey) {
-            // Отправляем серверу сообщение типа "key_exchange" с нашим публичным ключом и clientId
             wsRef.current.send(
               JSON.stringify({
                 type: "key_exchange",
@@ -261,7 +257,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
         wsRef.current.onmessage = async (event) => {
           try {
             let data = event.data;
-            // Если получено не строковое значение, преобразуем его в строку
             if (typeof data !== "string") {
               data = data.toString();
               console.warn(
@@ -270,7 +265,6 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
             }
             data = JSON.parse(data);
             console.log("Получено сообщение от сервера:", data);
-            // Если это обмен ключами – сохраняем публичный ключ собеседника
             if (data.type === "key_exchange" && data.publicKey) {
               try {
                 setKeys((prevKeys) => ({
@@ -481,7 +475,7 @@ const safeDecryptMessage = async (encryptedMessage, privateKey, passphrase) => {
           encryptionKeys: await openpgp.readKey({
             armoredKey: keys.recipientPublicKey,
           }),
-          armor: true, 
+          format: 'armored', 
         });
       } else {
         encryptedFile = fileBuffer;
