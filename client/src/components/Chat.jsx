@@ -11,6 +11,7 @@ import {
   initializeDB,
 } from "../utils/crypto";
 import {
+  base64ToArrayBuffer,
   arrayBufferToBase64,
   encryptPrivateKey,
   decryptPrivateKey,
@@ -269,11 +270,7 @@ const Chat = () => {
                     passphrase
                   );
                 } else {
-                  const {
-                    base64ToArrayBuffer,
-                  } = require("../utils/cryptoProtection");
-                  const buffer = base64ToArrayBuffer(data.encryptedFile);
-                  fileData = new Uint8Array(buffer);
+                  fileData = new Uint8Array(base64ToArrayBuffer(data.encryptedFile));
                 }
                 const blob = new Blob([fileData], {
                   type: data.fileType,

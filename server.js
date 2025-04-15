@@ -144,8 +144,9 @@ wss.on("connection", (ws) => {
       else if (type === "message") {
         const timestamp = formatTime();
         const messageData = JSON.stringify({
+          type:"message",
           clientId,
-          encryptedMessage, // для текстовых сообщений
+          encryptedMessage,
           timestamp,
           recipientId
         });
@@ -165,6 +166,7 @@ wss.on("connection", (ws) => {
       else if (type === "file") {
         const timestamp = formatTime();
         const fileMessageData = JSON.stringify({
+          type: "file",
           clientId,
           encryptedFile,
           fileName,
@@ -179,7 +181,7 @@ wss.on("connection", (ws) => {
             }
           });
         } else {
-          broadcastMessage({ clientId, encryptedFile, fileName, fileType, timestamp });
+          broadcastMessage({  type: "file", clientId, encryptedFile, fileName, fileType, timestamp });
         }
         await redisPub.rPush("chat:messages", fileMessageData);
         redisPub.publish("chat", fileMessageData);
