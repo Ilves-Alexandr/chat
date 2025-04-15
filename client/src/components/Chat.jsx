@@ -260,32 +260,37 @@ const Chat = () => {
             } else if (data.type === "file") {
               let fileData;
               try {
-                if (
-                  typeof data.encryptedFile === "string" &&
-                  data.encryptedFile.startsWith("-----BEGIN PGP MESSAGE-----")
-                ) {
-                  fileData = await decryptFile(
-                    data.encryptedFile,
-                    privateKeyRef.current,
-                    passphrase
-                  );
+                if (typeof data.encryptedFile === "string") {
+                  if (
+                    data.encryptedFile.startsWith("-----BEGIN PGP MESSAGE-----")
+                  ) {
+                    fileData = await decryptFile(
+                      data.encryptedFile,
+                      privateKeyRef.current,
+                      passphrase
+                    );
+                  } else if (data.encryptedFile.trim().length > 0) {
+                    fileData = new Uint8Array(
+                      base64ToArrayBuffer(data.encryptedFile)
+                    );
+                  } else {
+                    throw new Error("Пустое поле encryptedFile");
+                  }
                 } else {
-                  fileData = new Uint8Array(base64ToArrayBuffer(data.encryptedFile));
+                  throw new Error("Неверный тип поля encryptedFile");
                 }
-                const blob = new Blob([fileData], {
-                  type: data.fileType,
-                });
+                const blob = new Blob([fileData], { type: data.fileType });
                 const fileUrl = URL.createObjectURL(blob);
                 setMessages((prev) => [
                   ...prev,
                   {
                     userId: data.clientId,
-                    text: `Файл "${data.fileName}" получен. `,
+                    text: `Файл "${data.fileName}" получен.`,
                     fileUrl,
                   },
                 ]);
               } catch (error) {
-                console.error(`Ошибка обработки файла`);
+                console.error("Ошибка обработки файла:", error);
                 toast.error("Ошибка обработки файла");
               }
             }
