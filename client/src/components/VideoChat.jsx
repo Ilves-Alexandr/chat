@@ -37,12 +37,13 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const mediaKeyRef = useRef(null);
+  const pendingCandidates = useRef([]);
 
   const iceServers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
   // Insertable Streams: sender-side encryption
   const setupSenderTransform = (pc) => {
-    pc.getSenders?.().forEach(sender => {
+    pc.getSenders?.().forEach((sender) => {
       if (sender.track?.kind === "video" && sender.createEncodedStreams) {
         const { readable, writable } = sender.createEncodedStreams();
         const encryptTransform = new TransformStream({
@@ -65,7 +66,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
             } catch (e) {
               console.error("Encryption error:", e);
             }
-          }
+          },
         });
         readable.pipeThrough(encryptTransform).pipeTo(writable);
         console.log("Sender transform established");
@@ -75,7 +76,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // Insertable Streams: receiver-side decryption
   const setupReceiverTransform = (pc) => {
-    pc.getReceivers?.().forEach(receiver => {
+    pc.getReceivers?.().forEach((receiver) => {
       if (receiver.track?.kind === "video" && receiver.createEncodedStreams) {
         const { readable, writable } = receiver.createEncodedStreams();
         const decryptTransform = new TransformStream({
@@ -94,7 +95,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
             } catch (e) {
               console.error("Decryption error:", e);
             }
-          }
+          },
         });
         readable.pipeThrough(decryptTransform).pipeTo(writable);
         console.log("Receiver transform established");
@@ -105,7 +106,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   // Handle incoming WS messages for video signaling
   useEffect(() => {
     if (!ws) return;
-    const onMessage = event => {
+    const onMessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "video_signal") {
         if (data.signalType === "video_offer") {
@@ -123,16 +124,22 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // Common signal handler: answer & ICE
   useEffect(() => {
-    const handler = e => {
+    const handler = (e) => {
       const d = e.detail;
       if (d.signalType === "video_answer") {
-        peerConnectionRef.current?.setRemoteDescription(
-          new RTCSessionDescription(d.answer)
-        ).then(() => setCallStatus("in_call"));
+        peerConnectionRef.current
+          ?.setRemoteDescription(new RTCSessionDescription(d.answer))
+          .then(() => setCallStatus("in_call"));
       } else if (d.signalType === "ice_candidate") {
-        peerConnectionRef.current?.addIceCandidate(
-          new RTCIceCandidate(d.candidate)
-        ).catch(console.error);
+        const pc = peerConnectionRef.current;
+        if (!pc || pc.signalingState === "closed") return;
+        if (!pc.remoteDescription) {
+          pendingCandidates.current.push(d.candidate);
+        } else {
+          pc.addIceCandidate(new RTCIceCandidate(d.candidate)).catch(
+            console.error
+          );
+        }
       }
     };
     document.addEventListener("videoSignal", handler);
@@ -151,16 +158,19 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // Create and send offer
   const makeOffer = useCallback(async () => {
-    peerConnectionRef.current.createOffer()
-      .then(offer => peerConnectionRef.current.setLocalDescription(offer))
+    peerConnectionRef.current
+      .createOffer()
+      .then((offer) => peerConnectionRef.current.setLocalDescription(offer))
       .then(() => {
-        ws.send(JSON.stringify({
-          type: "video_signal",
-          signalType: "video_offer",
-          offer: peerConnectionRef.current.localDescription,
-          clientId,
-          recipientId
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "video_signal",
+            signalType: "video_offer",
+            offer: peerConnectionRef.current.localDescription,
+            clientId,
+            recipientId,
+          })
+        );
       });
   }, [ws, clientId, recipientId]);
 
@@ -170,24 +180,36 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       mediaKeyRef.current = await generateMediaKey();
       console.log("Media key generated");
     }
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
 
     const pc = new RTCPeerConnection(iceServers);
     peerConnectionRef.current = pc;
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
     setupSenderTransform(pc);
 
-    pc.onicecandidate = e => {
+    pc.onicecandidate = (e) => {
       if (e.candidate && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId, recipientId }));
+        ws.send(
+          JSON.stringify({
+            type: "video_signal",
+            signalType: "ice_candidate",
+            candidate: e.candidate,
+            clientId,
+            recipientId,
+          })
+        );
       }
     };
-    pc.ontrack = e => {
+    pc.ontrack = (e) => {
       setupReceiverTransform(pc);
       remoteVideoRef.current.srcObject = e.streams[0];
       setRemoteStream(e.streams[0]);
+      remoteVideoRef.current.play().catch(() => {});
     };
 
     await makeOffer();
@@ -195,41 +217,71 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   };
 
   // Handle incoming offer and send answer
-  const handleOffer = useCallback(async data => {
-    if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
-    const pc = new RTCPeerConnection(iceServers);
-    peerConnectionRef.current = pc;
+  const handleOffer = useCallback(
+    async (data) => {
+      if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
+      const pc = new RTCPeerConnection(iceServers);
+      peerConnectionRef.current = pc;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    setLocalStream(stream);
-    localVideoRef.current.srcObject = stream;
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
-    setupSenderTransform(pc);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setLocalStream(stream);
+      localVideoRef.current.srcObject = stream;
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      setupSenderTransform(pc);
 
-    pc.onicecandidate = e => {
-      if (e.candidate && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId, recipientId }));
-      }
-    };
-    pc.ontrack = e => {
-      setupReceiverTransform(pc);
-      remoteVideoRef.current.srcObject = e.streams[0];
-      setRemoteStream(e.streams[0]);
-    };
+      pc.onicecandidate = (e) => {
+        if (e.candidate && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "video_signal",
+              signalType: "ice_candidate",
+              candidate: e.candidate,
+              clientId,
+              recipientId,
+            })
+          );
+        }
+      };
+      pc.ontrack = (e) => {
+        setupReceiverTransform(pc);
+        remoteVideoRef.current.srcObject = e.streams[0];
+        setRemoteStream(e.streams[0]);
+      };
 
-    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    ws.send(JSON.stringify({ type: "video_signal", signalType: "video_answer", answer, clientId, recipientId }));
-    setCallStatus("in_call");
-  }, [ws, clientId]);
+      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      pendingCandidates.current.forEach(cand =>
+        pc.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error)
+      );
+      pendingCandidates.current = [];
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(
+        JSON.stringify({
+          type: "video_signal",
+          signalType: "video_answer",
+          answer,
+          clientId,
+          recipientId,
+        })
+      );
+      setCallStatus("in_call");
+    },
+    [ws, clientId]
+  );
 
-  const toggleAudio = () => localStream?.getAudioTracks().forEach(t => t.enabled = !t.enabled) & setAudioEnabled(a => !a);
-  const toggleVideo = () => localStream?.getVideoTracks().forEach(t => t.enabled = !t.enabled) & setVideoEnabled(v => !v);
+  const toggleAudio = () =>
+    localStream?.getAudioTracks().forEach((t) => (t.enabled = !t.enabled)) &
+    setAudioEnabled((a) => !a);
+  const toggleVideo = () =>
+    localStream?.getVideoTracks().forEach((t) => (t.enabled = !t.enabled)) &
+    setVideoEnabled((v) => !v);
   const endCall = () => {
     peerConnectionRef.current?.close();
-    localStream?.getTracks().forEach(t => t.stop());
-    remoteStream?.getTracks().forEach(t => t.stop());
+    localStream?.getTracks().forEach((t) => t.stop());
+    remoteStream?.getTracks().forEach((t) => t.stop());
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
@@ -245,15 +297,26 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           <button onClick={reject}>Отклонить</button>
         </div>
       )}
-      {callStatus === "idle"
-        ? <button onClick={startCall}>Начать звонок</button>
-        : <button onClick={endCall}>Завершить звонок</button>
-      }
-      <button onClick={toggleAudio}>{audioEnabled ? "Выключить микрофон" : "Включить микрофон"}</button>
-      <button onClick={toggleVideo}>{videoEnabled ? "Выключить камеру" : "Включить камеру"}</button>
+      {callStatus === "idle" ? (
+        <button onClick={startCall}>Начать звонок</button>
+      ) : (
+        <button onClick={endCall}>Завершить звонок</button>
+      )}
+      <button onClick={toggleAudio}>
+        {audioEnabled ? "Выключить микрофон" : "Включить микрофон"}
+      </button>
+      <button onClick={toggleVideo}>
+        {videoEnabled ? "Выключить камеру" : "Включить камеру"}
+      </button>
       <div className="video-container">
-        <div className="local-video"><h3>Ваше видео</h3><video ref={localVideoRef} autoPlay muted playsInline /></div>
-        <div className="remote-video"><h3>Видео собеседника</h3><video ref={remoteVideoRef} autoPlay playsInline /></div>
+        <div className="local-video">
+          <h3>Ваше видео</h3>
+          <video ref={localVideoRef} autoPlay muted playsInline />
+        </div>
+        <div className="remote-video">
+          <h3>Видео собеседника</h3>
+          <video ref={remoteVideoRef} autoPlay playsInline />
+        </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
