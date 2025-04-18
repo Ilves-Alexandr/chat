@@ -162,6 +162,15 @@ wss.on("connection", (ws) => {
         await redisPub.rPush("chat:messages", messageData);
         redisPub.publish("chat", messageData);
       }
+      else if (type === "video_signal") {
+        // просто рассылаем всем остальным
+        wss.clients.forEach((client) => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(raw);
+          }
+        });
+        return;
+      }
       // Обработка файловых сообщений
       else if (type === "file") {
         const timestamp = formatTime();
