@@ -166,7 +166,7 @@ wss.on("connection", (ws) => {
         // просто рассылаем всем остальным
         wss.clients.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(raw);
+            client.send(data.toString());
           }
         });
         return;
