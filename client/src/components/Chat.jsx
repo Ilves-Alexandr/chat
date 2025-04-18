@@ -531,11 +531,13 @@ const Chat = () => {
           Отправить файл
         </button>
       </div>
-      {/* Компонент видеозвонков */}
-      <VideoChat
-        ws={wsRef.current}
-        clientId={localStorage.getItem("clientId")}
-      />
+      {chatType === "private" && (
+        <VideoChat
+          ws={wsRef.current}
+          clientId={localStorage.getItem("clientId")}
+          recipientId={confirmedRecipientId}
+        />
+      )}
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );

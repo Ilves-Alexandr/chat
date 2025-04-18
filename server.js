@@ -163,9 +163,12 @@ wss.on("connection", (ws) => {
         redisPub.publish("chat", messageData);
       }
       else if (type === "video_signal") {
-        // просто рассылаем всем остальным
         wss.clients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
+          if (
+            client !== ws &&
+            client.readyState === WebSocket.OPEN &&
+      +     client.clientId === parsedData.recipientId
+          ) {
             client.send(data.toString());
           }
         });

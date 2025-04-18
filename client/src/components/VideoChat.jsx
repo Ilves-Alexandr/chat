@@ -25,7 +25,7 @@ function getRandomIV() {
   return crypto.getRandomValues(new Uint8Array(12));
 }
 
-const VideoChat = ({ ws, clientId }) => {
+const VideoChat = ({ ws, clientId, recipientId }) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, in_call
@@ -158,10 +158,11 @@ const VideoChat = ({ ws, clientId }) => {
           type: "video_signal",
           signalType: "video_offer",
           offer: peerConnectionRef.current.localDescription,
-          clientId
+          clientId,
+          recipientId
         }));
       });
-  }, [ws, clientId]);
+  }, [ws, clientId, recipientId]);
 
   // Start a call
   const startCall = async () => {
