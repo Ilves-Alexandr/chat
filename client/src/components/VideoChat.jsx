@@ -181,7 +181,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
     pc.onicecandidate = e => {
       if (e.candidate && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId }));
+        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId, recipientId }));
       }
     };
     pc.ontrack = e => {
@@ -208,7 +208,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
     pc.onicecandidate = e => {
       if (e.candidate && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId }));
+        ws.send(JSON.stringify({ type: "video_signal", signalType: "ice_candidate", candidate: e.candidate, clientId, recipientId }));
       }
     };
     pc.ontrack = e => {
@@ -220,7 +220,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    ws.send(JSON.stringify({ type: "video_signal", signalType: "video_answer", answer, clientId }));
+    ws.send(JSON.stringify({ type: "video_signal", signalType: "video_answer", answer, clientId, recipientId }));
     setCallStatus("in_call");
   }, [ws, clientId]);
 
