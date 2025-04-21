@@ -46,7 +46,15 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         try {
           streams = sender.createEncodedStreams();
         } catch (err) {
-          console.warn("Sender: не удалось создать encodedStreams:", err);
+          console.warn("🔐 Sender: не удалось создать encodedStreams", {
+            error: err,
+            trackKind: sender.track.kind,
+            trackId: sender.track.id,
+            trackLabel: sender.track.label,
+            signalingState: pc.signalingState,
+            iceConnectionState: pc.iceConnectionState,
+            transceiverMids: pc.getTransceivers().map((t) => t.mid),
+          });
           return; // пропускаем этот sender
         }
         const { readable, writable } = streams;
@@ -67,12 +75,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
               frame.data = combined.buffer;
               controller.enqueue(frame);
             } catch (e) {
-              console.error("Encryption error:", e);
+              console.error("🔐 Encryption frame error:", e);
             }
           },
         });
         readable.pipeThrough(encryptTransform).pipeTo(writable);
-        console.log("Sender transform established");
+        console.log("✅ Sender transform established for track", sender.track.id);
       }
     });
   };
@@ -85,8 +93,16 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         try {
           streams = receiver.createEncodedStreams();
         } catch (err) {
-          console.warn("Receiver: не удалось создать encodedStreams:", err);
-          return; // пропускаем этот receiver
+          console.warn("🔓 Receiver: не удалось создать encodedStreams", {
+            error: err,
+            trackKind: receiver.track.kind,
+            trackId: receiver.track.id,
+            trackLabel: receiver.track.label,
+            signalingState: pc.signalingState,
+            iceConnectionState: pc.iceConnectionState,
+            transceiverMids: pc.getTransceivers().map((t) => t.mid),
+          });
+          return;
         }
         const { readable, writable } = streams;
         const decryptTransform = new TransformStream({
@@ -103,12 +119,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
               frame.data = decrypted;
               controller.enqueue(frame);
             } catch (e) {
-              console.error("Decryption error:", e);
+              console.error("🔓 Decryption frame error:", e);
             }
           },
         });
         readable.pipeThrough(decryptTransform).pipeTo(writable);
-        console.log("Receiver transform established");
+        console.log("✅ Receiver transform established for track", receiver.track.id);
       }
     });
   };
