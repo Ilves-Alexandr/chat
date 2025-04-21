@@ -120,13 +120,34 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const d = e.detail;
       const pc = peerConnectionRef.current;
       if (!pc) return;
+
       if (d.signalType === "video_answer") {
+        // 1) Устанавливаем remoteDescription
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+
+        // 2) Спускаем все буферизованные кандидаты
+        for (const cand of pendingCandidates.current) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+          } catch (err) {
+            console.warn("Не удалось добавить буферизированный ICE:", err);
+          }
+        }
+        pendingCandidates.current = [];
+
+        // 3) Всё готово, звонок установлен
         setCallStatus("in_call");
       } else if (d.signalType === "ice_candidate") {
-        // Buffer until remoteDescription is set
-        if (!pc.remoteDescription) pendingCandidates.current.push(d.candidate);
-        else await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+        // Если remoteDescription ещё не стоит — буферизуем
+        if (!pc.remoteDescription || pc.remoteDescription.type === "") {
+          pendingCandidates.current.push(d.candidate);
+        } else {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+          } catch (err) {
+            console.error("Ошибка addIceCandidate:", err);
+          }
+        }
       }
     };
     document.addEventListener("videoSignal", handler);
@@ -206,8 +227,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const pc = new RTCPeerConnection(iceServers);
       peerConnectionRef.current = pc;
       pc.addTransceiver("video", { direction: "sendrecv" });
-     pc.addTransceiver("audio", { direction: "sendrecv" });
-     setupSenderTransform(pc);
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      setupSenderTransform(pc);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
