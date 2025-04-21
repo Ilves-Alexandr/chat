@@ -1,3 +1,4 @@
+// VideoChat.jsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -11,15 +12,12 @@ async function generateMediaKey() {
     ["encrypt", "decrypt"]
   );
 }
-
 async function encryptData(data, key, iv) {
   return await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
 }
-
 async function decryptData(data, key, iv) {
   return await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
 }
-
 function getRandomIV() {
   return crypto.getRandomValues(new Uint8Array(12));
 }
@@ -104,8 +102,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   // ===== WebSocket signal handler =====
   useEffect(() => {
     if (!ws) return;
-    const onMessage = ({ data: raw }) => {
-      const msg = JSON.parse(raw);
+    const onMessage = ({ data }) => {
+      const msg = JSON.parse(data);
       if (msg.type === "video_signal") {
         if (msg.signalType === "video_offer") {
           setIncomingOffer(msg);
@@ -120,7 +118,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     return () => ws.removeEventListener("message", onMessage);
   }, [ws]);
 
-  // ===== Common WebRTC signal handler (answer + ICE) =====
+  // ===== Common WebRTC signal handler (video_answer + ICE) =====
   useEffect(() => {
     const handler = async (e) => {
       const msg = e.detail;
@@ -128,33 +126,30 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!pc) return;
 
       if (msg.signalType === "video_answer") {
-        // 1) Ставим remoteDescription
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(msg.answer)
-        );
-        // 2) Привязываем decrypt‑transform перед получением кадра
+        // 1) Устанавливаем remoteDescription
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        // 2) Настраиваем декодирование (до первого кадра)
         setupReceiverTransform(pc);
-        // 3) Спускаем буферизованные ICE
+        // 3) Спускаем буферизированные ICE
         for (const cand of pendingCandidates.current) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
           } catch (err) {
-            console.warn("Failed to add buffered ICE:", err);
+            console.warn("Buffered ICE failed:", err);
           }
         }
         pendingCandidates.current = [];
         setCallStatus("in_call");
       } else if (msg.signalType === "ice_candidate") {
-        // Ignore if already closed
         if (pc.signalingState === "closed") return;
-        // Buffer до того, как remoteDescription
+        // Буферизуем, если remoteDescription ещё не установлено
         if (!pc.remoteDescription || !pc.remoteDescription.type) {
           pendingCandidates.current.push(msg.candidate);
         } else {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
           } catch (err) {
-            console.error("Error addIceCandidate:", err);
+            console.error("addIceCandidate error:", err);
           }
         }
       }
@@ -195,11 +190,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       mediaKeyRef.current = await generateMediaKey();
       console.log("Media key generated");
     }
-
     const pc = new RTCPeerConnection(iceConfig);
     peerConnectionRef.current = pc;
 
-    // Добавляем локальные дорожки
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -208,7 +201,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
 
-    // Шифруем исходящий видео-поток
+    // Шифруем исходящий
     setupSenderTransform(pc);
 
     pc.onicecandidate = ({ candidate }) => {
@@ -225,7 +218,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       }
     };
 
-    // Просто отображаем входящий поток — декодирование уже настроено выше, в handler-е ответа
+    // Просто показываем приходящий поток
     pc.ontrack = ({ streams: [s] }) => {
       setRemoteStream(s);
       remoteVideoRef.current.srcObject = s;
@@ -246,7 +239,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const pc = new RTCPeerConnection(iceConfig);
       peerConnectionRef.current = pc;
 
-      // Добавляем локальные дорожки
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -255,7 +247,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       setLocalStream(stream);
       localVideoRef.current.srcObject = stream;
 
-      // Шифруем исходящий видео-поток
       setupSenderTransform(pc);
 
       pc.onicecandidate = ({ candidate }) => {
@@ -278,19 +269,18 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         remoteVideoRef.current.play().catch(() => {});
       };
 
-      // 1) remoteDescription
+      // 1) устанавливаем remoteDescription
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      // 2) привязываем расшифровку
+      // 2) настраиваем декодирование
       setupReceiverTransform(pc);
-      // 3) сбрасываем буфер
+      // 3) сливаем буфер
       for (const cand of pendingCandidates.current) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(cand));
         } catch {}
       }
       pendingCandidates.current = [];
-
-      // 4) отвечаем
+      // 4) создаём и шлём answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       ws.send(
@@ -329,7 +319,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   return (
     <div className="video-chat-container">
       <h2>Video Chat</h2>
-
       {incomingOffer && (
         <div className="incoming-call-banner">
           <p>Входящий звонок от {incomingOffer.clientId}</p>
@@ -337,20 +326,17 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           <button onClick={reject}>Отклонить</button>
         </div>
       )}
-
       {callStatus === "idle" ? (
         <button onClick={startCall}>Начать звонок</button>
       ) : (
         <button onClick={endCall}>Завершить звонок</button>
       )}
-
       <button onClick={toggleAudio}>
         {audioEnabled ? "Выключить микрофон" : "Включить микрофон"}
       </button>
       <button onClick={toggleVideo}>
         {videoEnabled ? "Выключить камеру" : "Включить камеру"}
       </button>
-
       <div className="video-container">
         <div className="local-video">
           <h3>Ваше видео</h3>
@@ -361,7 +347,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           <video ref={remoteVideoRef} autoPlay playsInline />
         </div>
       </div>
-
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
