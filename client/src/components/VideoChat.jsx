@@ -42,7 +42,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const setupSenderTransform = (pc) => {
     pc.getSenders?.().forEach((sender) => {
       if (sender.track?.kind === "video" && sender.createEncodedStreams) {
-        const { readable, writable } = sender.createEncodedStreams();
+        let streams;
+        try {
+          streams = sender.createEncodedStreams();
+        } catch (err) {
+          console.warn("Sender: не удалось создать encodedStreams:", err);
+          return; // пропускаем этот sender
+        }
+        const { readable, writable } = streams;
         const encryptTransform = new TransformStream({
           async transform(frame, controller) {
             const iv = getRandomIV();
@@ -74,7 +81,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const setupReceiverTransform = (pc) => {
     pc.getReceivers?.().forEach((receiver) => {
       if (receiver.track?.kind === "video" && receiver.createEncodedStreams) {
-        const { readable, writable } = receiver.createEncodedStreams();
+        let streams;
+        try {
+          streams = receiver.createEncodedStreams();
+        } catch (err) {
+          console.warn("Receiver: не удалось создать encodedStreams:", err);
+          return; // пропускаем этот receiver
+        }
+        const { readable, writable } = streams;
         const decryptTransform = new TransformStream({
           async transform(frame, controller) {
             try {
