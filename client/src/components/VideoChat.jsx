@@ -122,10 +122,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!pc) return;
 
       if (d.signalType === "video_answer") {
-        // 1) Устанавливаем remoteDescription
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
-
-        // 2) Спускаем все буферизованные кандидаты
+        setupReceiverTransform(pc);
         for (const cand of pendingCandidates.current) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
@@ -138,15 +136,24 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         // 3) Всё готово, звонок установлен
         setCallStatus("in_call");
       } else if (d.signalType === "ice_candidate") {
-        // Если remoteDescription ещё не стоит — буферизуем
+        // // Если remoteDescription ещё не стоит — буферизуем
+        // if (!pc.remoteDescription || pc.remoteDescription.type === "") {
+        //   pendingCandidates.current.push(d.candidate);
+        // } else {
+        //   try {
+        //     await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+        //   } catch (err) {
+        //     console.error("Ошибка addIceCandidate:", err);
+        //   }
+        // }
+        if (pc.signalingState === "closed") return;
+        // Buffer до remoteDescription
         if (!pc.remoteDescription || pc.remoteDescription.type === "") {
           pendingCandidates.current.push(d.candidate);
         } else {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-          } catch (err) {
-            console.error("Ошибка addIceCandidate:", err);
-          }
+          await pc
+            .addIceCandidate(new RTCIceCandidate(d.candidate))
+            .catch((err) => console.error("Ошибка addIceCandidate:", err));
         }
       }
     };
@@ -215,7 +222,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         );
     };
     pc.ontrack = (e) => {
-      setupReceiverTransform(pc);
       const [remote] = e.streams;
       setRemoteStream(remote);
       remoteVideoRef.current.srcObject = remote;
@@ -260,16 +266,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           );
       };
       pc.ontrack = (e) => {
-        setupReceiverTransform(pc);
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
         remoteVideoRef.current.play().catch(() => {});
       };
 
-      // 1) set remote
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-      // 2) flush buffered candidates
+      setupReceiverTransform(pc);
       for (const cand of pendingCandidates.current) {
         await pc.addIceCandidate(new RTCIceCandidate(cand));
       }
