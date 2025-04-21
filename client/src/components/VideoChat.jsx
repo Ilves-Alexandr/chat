@@ -185,15 +185,21 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceServers);
     peerConnectionRef.current = pc;
-    // force sendrecv transceivers
-    const videoTrans = pc.addTransceiver("video", { direction: "sendrecv" });
-    const audioTrans = pc.addTransceiver("audio", { direction: "sendrecv" });
-    setupSenderTransform(pc);
+    // const videoTrans = pc.addTransceiver("video", { direction: "sendrecv" });
+    // const audioTrans = pc.addTransceiver("audio", { direction: "sendrecv" });
+    // setupSenderTransform(pc);
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
+    // stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    // setLocalStream(stream);
+    // localVideoRef.current.srcObject = stream;
+    // pc.onicecandidate = (e) => {
+    // Добавляем локальные дорожки в PeerConnection
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    // Только теперь можно привязать Transform к отправителям
+    setupSenderTransform(pc);
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
     pc.onicecandidate = (e) => {
@@ -226,18 +232,21 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceServers);
       peerConnectionRef.current = pc;
-      pc.addTransceiver("video", { direction: "sendrecv" });
-      pc.addTransceiver("audio", { direction: "sendrecv" });
-      setupSenderTransform(pc);
+      // pc.addTransceiver("video", { direction: "sendrecv" });
+      // pc.addTransceiver("audio", { direction: "sendrecv" });
+      // setupSenderTransform(pc);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
+      // stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      // setLocalStream(stream);
+      // localVideoRef.current.srcObject = stream;
+      // setupSenderTransform(pc);
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      setupSenderTransform(pc);
       setLocalStream(stream);
       localVideoRef.current.srcObject = stream;
-      setupSenderTransform(pc);
-
       pc.onicecandidate = (e) => {
         if (e.candidate)
           ws.send(
