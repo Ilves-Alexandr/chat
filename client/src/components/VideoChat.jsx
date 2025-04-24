@@ -33,6 +33,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const pcRef = useRef(null);
   const mediaKeyRef = useRef(null);
   const bufferedIce = useRef([]);
+  const initializedReceivers = new WeakSet();
 
   // Устанавливаем шифрование на конкретном Sender
   const setupSenderTransform = (sender) => {
@@ -69,6 +70,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   // Устанавливаем дешифрование на конкретном Receiver
   const setupReceiverTransform = (receiver) => {
     const pc = pcRef.current;
+    if (initializedReceivers.has(receiver)) {
+      console.log("⏭ Receiver already initialized, skipping:", receiver.track.id);
+      return;
+    }
     if (!pc) {
       console.warn(
         "🚫 setupReceiverTransform: RTCPeerConnection not initialized"
@@ -102,6 +107,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       });
       return;
     }
+    initializedReceivers.add(receiver);
     const { readable, writable } = streams;
     const transform = new TransformStream({
       async transform(frame, ctrl) {
@@ -210,10 +216,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     stream
       .getTracks()
       .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
-
-    pc.getTransceivers().forEach((transceiver) => {
-      setupReceiverTransform(transceiver.receiver);
-    });
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
