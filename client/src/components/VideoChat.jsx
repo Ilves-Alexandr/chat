@@ -49,6 +49,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       async transform(frame, ctrl) {
         const iv = getRandomIV();
         try {
+          const iv = getRandomIV();
           const enc = await encryptData(frame.data, mediaKeyRef.current, iv);
           const ivArr = new Uint8Array(iv);
           const encArr = new Uint8Array(enc);
@@ -137,8 +138,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const d = e.detail;
       const pc = pcRef.current;
       if (!pc) return;
-
       if (d.signalType === "video_answer") {
+        console.log("🔄 [video_answer] setting remote description");
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
         console.log(
           "🔄 after setRemoteDescription():",
@@ -149,15 +150,19 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           "receivers=",
           pc.getReceivers().map((r) => r.track.id)
         );
+        console.log(
+          "🔄 [after setRemoteDescription] receivers=",
+          pc.getReceivers().map((r) => r.track.id)
+        );
         pc.getReceivers().forEach((r) => setupReceiverTransform(r));
-        for (const cand of bufferedIce.current) {
+        bufferedIce.current.forEach(async (cand) => {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
-            console.log("✅ Flushed buffered ICE candidate");
+            console.log("✅ Flushed ICE");
           } catch (err) {
             console.warn("Buffered ICE add failed:", err);
           }
-        }
+        });
         bufferedIce.current = [];
         setCallStatus("in_call");
       } else if (d.signalType === "ice_candidate") {
@@ -208,22 +213,15 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
-
-    // Локальная медиа
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
-
-    // Добавляем треки и шифруем
-    stream.getTracks().forEach((track) => {
-      const sender = pc.addTrack(track, stream);
-      setupSenderTransform(sender);
-    });
-
-    // ICE-кандидаты
+    stream
+      .getTracks()
+      .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         ws.send(
@@ -237,20 +235,18 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         );
       }
     };
-
-    // Треки от удаленного
     pc.ontrack = (e) => {
       console.log(
-        "📥 ontrack fired:",
-        "track.id=",
+        "📥 [ontrack] track.id=",
         e.receiver.track.id,
-        "track.kind=",
+        "kind=",
         e.receiver.track.kind,
-        "signalingState=",
-        pc.signalingState,
-        "iceConnectionState=",
-        pc.iceConnectionState
+        "state=",
+        e.receiver.track.readyState
       );
+      console.log("🔥 calling setupReceiverTransform now");
+      setupReceiverTransform(e.receiver);
+      console.log("🔥 after setupReceiverTransform");
       const [remote] = e.streams;
       setRemoteStream(remote);
       remoteVideoRef.current.srcObject = remote;
@@ -267,18 +263,15 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
-
-      // Локальная медиа
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
       setLocalStream(stream);
       localVideoRef.current.srcObject = stream;
-      stream.getTracks().forEach((track) => {
-        const sender = pc.addTrack(track, stream);
-        setupSenderTransform(sender);
-      });
+      stream
+        .getTracks()
+        .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
 
       pc.onicecandidate = (e) => {
         if (e.candidate) {
@@ -296,23 +289,22 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
       pc.ontrack = (e) => {
         console.log(
-          "📥 ontrack fired:",
-          "track.id=",
+          "📥 [ontrack] track.id=",
           e.receiver.track.id,
-          "track.kind=",
+          "kind=",
           e.receiver.track.kind,
-          "signalingState=",
-          pc.signalingState,
-          "iceConnectionState=",
-          pc.iceConnectionState
+          "state=",
+          e.receiver.track.readyState
         );
+        console.log("🔥 calling setupReceiverTransform now");
+        setupReceiverTransform(e.receiver);
+        console.log("🔥 after setupReceiverTransform");
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
         remoteVideoRef.current.play().catch(() => {});
       };
-
-      // Устанавливаем удаленное описание и E2E дешифрование
+      console.log("🔄 [handleOffer] setting remote description");
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
       console.log(
         "🔄 after setRemoteDescription():",
@@ -323,13 +315,11 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         "receivers=",
         pc.getReceivers().map((r) => r.track.id)
       );
-      pc.getReceivers().forEach((r) => setupReceiverTransform(r));
-      for (const cand of bufferedIce.current) {
-        await pc.addIceCandidate(new RTCIceCandidate(cand));
-      }
+      bufferedIce.current.forEach(async (cand) => {
+        try { await pc.addIceCandidate(new RTCIceCandidate(cand)); }
+        catch {};
+      });
       bufferedIce.current = [];
-
-      // Создание и отправка ответа
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       ws.send(
@@ -349,7 +339,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const endCall = () => {
     pcRef.current?.close();
     localStream?.getTracks().forEach((t) => t.stop());
-    remoteStream?.getTracks()?.forEach((t) => t.stop());
+    remoteStream?.getTracks().forEach((t) => t.stop());
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
