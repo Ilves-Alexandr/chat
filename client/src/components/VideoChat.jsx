@@ -47,7 +47,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     const { readable, writable } = streams;
     const transform = new TransformStream({
       async transform(frame, ctrl) {
-        const iv = getRandomIV();
         try {
           const iv = getRandomIV();
           const enc = await encryptData(frame.data, mediaKeyRef.current, iv);
@@ -212,6 +211,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const startCall = async () => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
+    console.log(
+      "🆕 new RTCPeerConnection, initial transceivers:",
+      pc.getTransceivers().length
+    );
+    const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
+    const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
+    setupReceiverTransform(videoRecv.receiver);
+    setupReceiverTransform(audioRecv.receiver);
     pcRef.current = pc;
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -222,6 +229,11 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     stream
       .getTracks()
       .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
+
+    pc.getTransceivers().forEach((transceiver) => {
+      setupReceiverTransform(transceiver.receiver);
+    });
+
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         ws.send(
@@ -237,16 +249,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     };
     pc.ontrack = (e) => {
       console.log(
-        "📥 [ontrack] track.id=",
-        e.receiver.track.id,
-        "kind=",
-        e.receiver.track.kind,
-        "state=",
+        "📥 ontrack fired, receiver state:",
         e.receiver.track.readyState
       );
-      console.log("🔥 calling setupReceiverTransform now");
+      console.log("🔥 attempting setupReceiverTransform");
       setupReceiverTransform(e.receiver);
-      console.log("🔥 after setupReceiverTransform");
+      console.log("🔥 setupReceiverTransform done");
       const [remote] = e.streams;
       setRemoteStream(remote);
       remoteVideoRef.current.srcObject = remote;
@@ -262,6 +270,15 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     async (d) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceConfig);
+      console.log(
+        "🆕 new RTCPeerConnection, initial transceivers:",
+        pc.getTransceivers().length
+      );
+      const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
+      const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
+
+      setupReceiverTransform(videoRecv.receiver);
+      setupReceiverTransform(audioRecv.receiver);
       pcRef.current = pc;
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -272,7 +289,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       stream
         .getTracks()
         .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
-
+      pc.getTransceivers().forEach((transceiver) => {
+        setupReceiverTransform(transceiver.receiver);
+      });
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           ws.send(
@@ -289,23 +308,27 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
       pc.ontrack = (e) => {
         console.log(
-          "📥 [ontrack] track.id=",
-          e.receiver.track.id,
-          "kind=",
-          e.receiver.track.kind,
-          "state=",
+          "📥 ontrack fired, receiver state:",
           e.receiver.track.readyState
         );
-        console.log("🔥 calling setupReceiverTransform now");
+        console.log("🔥 attempting setupReceiverTransform");
         setupReceiverTransform(e.receiver);
-        console.log("🔥 after setupReceiverTransform");
+        console.log("🔥 setupReceiverTransform done");
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
         remoteVideoRef.current.play().catch(() => {});
       };
       console.log("🔄 [handleOffer] setting remote description");
+      console.log(
+        "🔄 before setRemoteDescription(), receivers:",
+        pc.getReceivers().map((r) => r.track.id)
+      );
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+      console.log(
+        "🔄 after setRemoteDescription(), receivers:",
+        pc.getReceivers().map((r) => r.track.id)
+      );
       console.log(
         "🔄 after setRemoteDescription():",
         "signalingState=",
@@ -316,8 +339,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         pc.getReceivers().map((r) => r.track.id)
       );
       bufferedIce.current.forEach(async (cand) => {
-        try { await pc.addIceCandidate(new RTCIceCandidate(cand)); }
-        catch {};
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(cand));
+        } catch {}
       });
       bufferedIce.current = [];
       const answer = await pc.createAnswer();
