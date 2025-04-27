@@ -69,9 +69,18 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // Устанавливаем дешифрование на конкретном Receiver
   const setupReceiverTransform = (receiver) => {
+    console.log(
+      "🔍 setupReceiverTransform(): new receiver",
+      receiver.track.kind,
+      "initializedBefore=",
+      initializedReceivers.has(receiver)
+    );
     const pc = pcRef.current;
     if (initializedReceivers.has(receiver)) {
-      console.log("⏭ Receiver already initialized, skipping:", receiver.track.id);
+      console.log(
+        "⏭ Receiver already initialized, skipping:",
+        receiver.track.id
+      );
       return;
     }
     if (!pc) {
@@ -207,6 +216,13 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
+    const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
+    const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
+    console.log("➕ added transceiver for", videoRecv.receiver.track.kind);
+    console.log("➕ added transceiver for", audioRecv.receiver.track.kind);
+
+    setupReceiverTransform(videoRecv.receiver);
+    setupReceiverTransform(audioRecv.receiver);
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -240,7 +256,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         e.receiver.track.readyState
       );
       console.log("🔥 calling setupReceiverTransform now");
-      setupReceiverTransform(e.receiver);
       console.log("🔥 after setupReceiverTransform");
       const [remote] = e.streams;
       setRemoteStream(remote);
@@ -256,6 +271,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
+      const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
+      const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
+      console.log("➕ added transceiver for", videoRecv.receiver.track.kind);
+      console.log("➕ added transceiver for", audioRecv.receiver.track.kind);
+      setupReceiverTransform(videoRecv.receiver);
+      setupReceiverTransform(audioRecv.receiver);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -285,7 +306,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           e.receiver.track.readyState
         );
         console.log("🔥 attempting setupReceiverTransform");
-        setupReceiverTransform(e.receiver);
         console.log("🔥 setupReceiverTransform done");
         const [remote] = e.streams;
         setRemoteStream(remote);
