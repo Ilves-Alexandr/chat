@@ -140,17 +140,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const d = e.detail;
       const pc = pcRef.current;
       if (!pc) return;
-      if (d.signalType === "video_offer") {
-        pc.addTransceiver("video", { direction: "sendrecv" });
-        pc.addTransceiver("audio", { direction: "sendrecv" });
-        await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-        pc.getReceivers().forEach(setupReceiverTransform);
-        console.log(
-          "🔄 Receivers after SDP:",
-          pc.getReceivers().map((r) => r.track.id)
-        );
-        setCallStatus("in_call");
-      }
       if (d.signalType === "video_answer") {
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
         pc.getReceivers().forEach(setupReceiverTransform);
