@@ -143,20 +143,18 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (d.signalType === "video_answer") {
         console.log("🔄 [video_answer] setting remote description");
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+        pc.getReceivers().forEach((receiver) => {
+          console.log(
+            "➕ Applying receiver transform for",
+            receiver.track.kind,
+            receiver.track.id
+          );
+          setupReceiverTransform(receiver);
+        });
         console.log(
           "🔄 Receivers after SDP:",
           pc.getReceivers().map((r) => r.track.id)
         );
-        // flush ICE
-        for (const cand of bufferedIce.current) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
-            console.log("✅ Flushed ICE candidate");
-          } catch (err) {
-            console.warn("ICE add failed:", err);
-          }
-        }
-        bufferedIce.current = [];
         setCallStatus("in_call");
       } else if (d.signalType === "ice_candidate") {
         if (pc.signalingState === "closed") return;
@@ -204,6 +202,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
+    const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
+    const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
+    setupReceiverTransform(recvVideo.receiver);
+    setupReceiverTransform(recvAudio.receiver);
     // — Локальные треки + шифрование
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -211,9 +213,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
-    stream.getTracks().forEach(track => {
+    stream.getTracks().forEach((track) => {
       const sender = pc.addTrack(track, stream);
-      setupSenderTransform(sender);   // <— НИКОГДА не позже setLocalDescription
+      setupSenderTransform(sender); // <— НИКОГДА не позже setLocalDescription
     });
     // — ICE candidates
     pc.onicecandidate = (e) => {
@@ -257,13 +259,13 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
       setupReceiverTransform(recvVideo.receiver);
       setupReceiverTransform(recvAudio.receiver);
-       // — Локальные треки + шифрование
+      // — Локальные треки + шифрование
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
       setLocalStream(stream);
-      stream.getTracks().forEach(track => {
+      stream.getTracks().forEach((track) => {
         const sender = pc.addTrack(track, stream);
         setupSenderTransform(sender);
       });
@@ -282,7 +284,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       };
 
       pc.ontrack = (e) => {
-        console.log("📥 ontrack:", e.receiver.track.kind, "streams:", e.streams.map(s=>s.id));
+        console.log(
+          "📥 ontrack:",
+          e.receiver.track.kind,
+          "streams:",
+          e.streams.map((s) => s.id)
+        );
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
@@ -291,8 +298,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
       console.log("🔄 [handleOffer] setting remote description");
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-       // flush ICE
-       for (const cand of bufferedIce.current) {
+      // flush ICE
+      for (const cand of bufferedIce.current) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(cand));
         } catch {}
@@ -300,7 +307,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       bufferedIce.current = [];
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      console.log("🔄 [handleOffer] local SDP answer:", pc.localDescription.sdp);
+      console.log(
+        "🔄 [handleOffer] local SDP answer:",
+        pc.localDescription.sdp
+      );
       ws.send(
         JSON.stringify({
           type: "video_signal",
@@ -332,14 +342,22 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       {incomingOffer && (
         <div className="incoming-call-banner">
           <p>Входящий звонок от {incomingOffer.clientId}</p>
-          <button className="btn" onClick={acceptCall}>Принять</button>
-          <button className="btn" onClick={rejectCall}>Отклонить</button>
+          <button className="btn" onClick={acceptCall}>
+            Принять
+          </button>
+          <button className="btn" onClick={rejectCall}>
+            Отклонить
+          </button>
         </div>
       )}
       {callStatus === "idle" ? (
-        <button className="btn" onClick={startCall}>Начать звонок</button>
+        <button className="btn" onClick={startCall}>
+          Начать звонок
+        </button>
       ) : (
-        <button className="btn" onClick={endCall}>Завершить звонок</button>
+        <button className="btn" onClick={endCall}>
+          Завершить звонок
+        </button>
       )}
       <div className="video-container">
         <div className="local-video">
