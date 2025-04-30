@@ -1,46 +1,49 @@
 .chat-container {
-    width: 400px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: white;
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-  }
-  .chat-type{
-    background-color: aqua;
-  }
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    max-height: 300px;
-    margin-bottom: 10px;
-  }
-  
-  .message {
-    padding: 8px;
-    border-radius: 4px;
-    margin-bottom: 5px;
-    background-color: #e1f5fe;
-  }
-  
-  .input-area {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .file-input .recipient-input .text-input {
-    flex: 1;
-    padding: 8px;
-    border: 5px solid red;
-    border-radius: 4px;
-  }
-  
-  .recovery-btn .clear-btn button {
-    padding: 8px 16px;
-    border: none;
-    background-color: #6200ee;
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-  }
+  margin: 0 auto;
+  max-width: 600px;
+  text-align: center;
+display: flex;
+flex-direction: column;
+color: blue;
+background: #eee;
+/* height: 100vh; */
+}
+.clear-btn {
+
+}
+.recovery-btn {
+
+}
+.chat-type {
+
+}
+.recipient-input{
+
+}
+.messages{
+
+}
+.message {
+
+}
+.input-area {
+
+}
+.text-input {
+
+}
+.file-input {
+
+}
+.input {
+  width: 70%;
+}
+.btn {
+
+width: 30%;
+}
+.top_btn-group {
+  display: flex;
+  flex-direction: row;
+justify-content: right;  
+}

@@ -3,7 +3,6 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./VideoChat.css";
 
-// AES-GCM media encryption/decryption helpers
 async function generateMediaKey() {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
     "encrypt",
@@ -20,7 +19,16 @@ function getRandomIV() {
   return crypto.getRandomValues(new Uint8Array(12));
 }
 
-const iceConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const iceConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:turn.example.com:3478",
+      username: "user",
+      credential: "pass",
+    },
+  ],
+};
 
 const VideoChat = ({ ws, clientId, recipientId }) => {
   const [localStream, setLocalStream] = useState(null);
@@ -35,7 +43,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const bufferedIce = useRef([]);
   const initializedReceivers = new WeakSet();
 
-  // Устанавливаем шифрование на конкретном Sender
+  // ============ Sender transform ============
   const setupSenderTransform = (sender) => {
     if (!sender.createEncodedStreams || sender.track.kind !== "video") return;
     let streams;
@@ -48,8 +56,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     const { readable, writable } = streams;
     const transform = new TransformStream({
       async transform(frame, ctrl) {
+        const iv = getRandomIV();
         try {
-          const iv = getRandomIV();
           const enc = await encryptData(frame.data, mediaKeyRef.current, iv);
           const ivArr = new Uint8Array(iv);
           const encArr = new Uint8Array(enc);
@@ -67,53 +75,28 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     console.log("✅ Sender transform established for sender", sender.track.id);
   };
 
-  // Устанавливаем дешифрование на конкретном Receiver
+  // ============ Receiver transform ============
   const setupReceiverTransform = (receiver) => {
-    console.log(
-      "🔍 setupReceiverTransform(): new receiver",
-      receiver.track.kind,
-      "initializedBefore=",
-      initializedReceivers.has(receiver)
-    );
-    const pc = pcRef.current;
     if (initializedReceivers.has(receiver)) {
-      console.log(
-        "⏭ Receiver already initialized, skipping:",
-        receiver.track.id
-      );
+      console.log("⏭ Receiver already initialized:", receiver.track.id);
       return;
     }
-    if (!pc) {
-      console.warn(
-        "🚫 setupReceiverTransform: RTCPeerConnection not initialized"
-      );
-      return;
-    }
-    console.log(
-      "🔍 setupReceiverTransform():",
-      "track.kind=",
-      receiver.track.kind,
-      "signalingState=",
-      pcRef.current.signalingState,
-      "iceConnectionState=",
-      pcRef.current.iceConnectionState,
-      "receiver.readyState=",
-      receiver.track.readyState
-    );
+
     if (!receiver.createEncodedStreams || receiver.track.kind !== "video") {
-      console.log("  — skipping transform: unsupported API or not video");
+      console.log("— skipping transform, not a video receiver");
+      initializedReceivers.add(receiver);
       return;
     }
     let streams;
     try {
       streams = receiver.createEncodedStreams();
     } catch (err) {
-      console.error("🔓 Receiver.createEncodedStreams FAILED:", err, {
-        signalingState: pcRef.current.signalingState,
-        iceConnectionState: pcRef.current.iceConnectionState,
+      console.error("🔓 Receiver.createEncodedStreams failed:", err, {
+        signalingState: pcRef.current?.signalingState,
+        iceConnectionState: pcRef.current?.iceConnectionState,
         trackReadyState: receiver.track.readyState,
-        bufferedLength: bufferedIce.current.length,
       });
+      initializedReceivers.add(receiver);
       return;
     }
     initializedReceivers.add(receiver);
@@ -138,6 +121,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       receiver.track.id
     );
   };
+  // ============ WebSocket signalling ============
   useEffect(() => {
     if (!ws) return;
     const onMsg = (e) => {
@@ -150,6 +134,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     ws.addEventListener("message", onMsg);
     return () => ws.removeEventListener("message", onMsg);
   }, [ws]);
+
   useEffect(() => {
     const handler = async (e) => {
       const d = e.detail;
@@ -159,27 +144,28 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         console.log("🔄 [video_answer] setting remote description");
         await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
         console.log(
-          "🔄 [after setRemoteDescription] receivers=",
+          "🔄 Receivers after SDP:",
           pc.getReceivers().map((r) => r.track.id)
         );
-        bufferedIce.current.forEach(async (cand) => {
+        // flush ICE
+        for (const cand of bufferedIce.current) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
-            console.log("✅ Flushed ICE");
+            console.log("✅ Flushed ICE candidate");
           } catch (err) {
-            console.warn("Buffered ICE add failed:", err);
+            console.warn("ICE add failed:", err);
           }
-        });
+        }
         bufferedIce.current = [];
         setCallStatus("in_call");
       } else if (d.signalType === "ice_candidate") {
         if (pc.signalingState === "closed") return;
-        if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        if (!pc.remoteDescription?.type) {
           bufferedIce.current.push(d.candidate);
         } else {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-            console.log("✅ ICE candidate added:", d.candidate);
+            console.log("✅ ICE candidate added");
           } catch (err) {
             console.error("🔴 ICE candidate add error:", err);
           }
@@ -189,7 +175,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     document.addEventListener("videoSignal", handler);
     return () => document.removeEventListener("videoSignal", handler);
   }, []);
-
+  // ============ Call control ============
   const acceptCall = () => {
     if (incomingOffer) handleOffer(incomingOffer);
     setIncomingOffer(null);
@@ -202,6 +188,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     const pc = pcRef.current;
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    console.log("🔄 [makeOffer] local SDP:", pc.localDescription.sdp);
     ws.send(
       JSON.stringify({
         type: "video_signal",
@@ -212,17 +199,23 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       })
     );
   }, [ws, clientId, recipientId]);
+  // ============ Initiator ============
   const startCall = async () => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
-    const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
-    const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
-    console.log("➕ added transceiver for", videoRecv.receiver.track.kind);
-    console.log("➕ added transceiver for", audioRecv.receiver.track.kind);
-
-    setupReceiverTransform(videoRecv.receiver);
-    setupReceiverTransform(audioRecv.receiver);
+    // Логи состояния
+    pc.oniceconnectionstatechange = () =>
+      console.log("ICE state:", pc.iceConnectionState);
+    pc.onsignalingstatechange = () =>
+      console.log("Signaling state:", pc.signalingState);
+    // — Резервируем ресиверы и навешиваем дешифрование до offer
+    const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
+    const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
+    console.log("➕ Added recv transceivers");
+    setupReceiverTransform(recvVideo.receiver);
+    setupReceiverTransform(recvAudio.receiver);
+    // — Локальные треки + шифрование
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -232,7 +225,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     stream
       .getTracks()
       .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
-
+    // — ICE candidates
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         ws.send(
@@ -246,17 +239,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         );
       }
     };
+    // — Получение треков
     pc.ontrack = (e) => {
       console.log(
-        "📥 [ontrack] track.id=",
-        e.receiver.track.id,
-        "kind=",
+        "📥 ontrack:",
         e.receiver.track.kind,
-        "state=",
-        e.receiver.track.readyState
+        "streams:",
+        e.streams.map((s) => s.id)
       );
-      console.log("🔥 calling setupReceiverTransform now");
-      console.log("🔥 after setupReceiverTransform");
       const [remote] = e.streams;
       setRemoteStream(remote);
       remoteVideoRef.current.srcObject = remote;
@@ -266,17 +256,25 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     await makeOffer();
     setCallStatus("calling");
   };
+  // ============ Receiver ============
   const handleOffer = useCallback(
     async (d) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
-      const videoRecv = pc.addTransceiver("video", { direction: "recvonly" });
-      const audioRecv = pc.addTransceiver("audio", { direction: "recvonly" });
-      console.log("➕ added transceiver for", videoRecv.receiver.track.kind);
-      console.log("➕ added transceiver for", audioRecv.receiver.track.kind);
-      setupReceiverTransform(videoRecv.receiver);
-      setupReceiverTransform(audioRecv.receiver);
+
+      pc.oniceconnectionstatechange = () =>
+        console.log("ICE state:", pc.iceConnectionState);
+      pc.onsignalingstatechange = () =>
+        console.log("Signaling state:", pc.signalingState);
+
+      // — Резервируем ресиверы ДО setRemoteDescription
+      const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
+      const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
+      console.log("➕ Added recv transceivers");
+      setupReceiverTransform(recvVideo.receiver);
+      setupReceiverTransform(recvAudio.receiver);
+       // — Локальные треки + шифрование
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -301,12 +299,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       };
 
       pc.ontrack = (e) => {
-        console.log(
-          "📥 ontrack fired, receiver state:",
-          e.receiver.track.readyState
-        );
-        console.log("🔥 attempting setupReceiverTransform");
-        console.log("🔥 setupReceiverTransform done");
+        console.log("📥 ontrack:", e.receiver.track.kind, "streams:", e.streams.map(s=>s.id));
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
@@ -315,14 +308,16 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
       console.log("🔄 [handleOffer] setting remote description");
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-      bufferedIce.current.forEach(async (cand) => {
+       // flush ICE
+       for (const cand of bufferedIce.current) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(cand));
         } catch {}
-      });
+      }
       bufferedIce.current = [];
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      console.log("🔄 [handleOffer] local SDP answer:", pc.localDescription.sdp);
       ws.send(
         JSON.stringify({
           type: "video_signal",
@@ -345,6 +340,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     setRemoteStream(null);
     setCallStatus("idle");
     bufferedIce.current = [];
+    initializedReceivers.clear();
   };
 
   return (
@@ -353,14 +349,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       {incomingOffer && (
         <div className="incoming-call-banner">
           <p>Входящий звонок от {incomingOffer.clientId}</p>
-          <button onClick={acceptCall}>Принять</button>
-          <button onClick={rejectCall}>Отклонить</button>
+          <button className="btn" onClick={acceptCall}>Принять</button>
+          <button className="btn" onClick={rejectCall}>Отклонить</button>
         </div>
       )}
       {callStatus === "idle" ? (
-        <button onClick={startCall}>Начать звонок</button>
+        <button className="btn" onClick={startCall}>Начать звонок</button>
       ) : (
-        <button onClick={endCall}>Завершить звонок</button>
+        <button className="btn" onClick={endCall}>Завершить звонок</button>
       )}
       <div className="video-container">
         <div className="local-video">

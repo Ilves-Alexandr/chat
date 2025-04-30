@@ -449,13 +449,15 @@ const Chat = () => {
   return (
     <div className="chat-container">
       <h1>Anonymous Chat</h1>
-      <button onClick={clearUserData} className="clear-btn">
-        Очистить данные аккаунта
-      </button>
-      {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
-      <button onClick={recoverAccount} className="recovery-btn">
-        Восстановить аккаунт
-      </button>
+      <div className="top_btn-group">
+        <button onClick={clearUserData} className="clear-btn btn">
+          Очистить данные аккаунта
+        </button>
+        {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
+        <button onClick={recoverAccount} className="recovery-btn btn">
+          Восстановить аккаунт
+        </button>
+      </div>
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
         <label>
@@ -482,7 +484,10 @@ const Chat = () => {
       {/* Если выбран приватный чат, поле для ввода ID собеседника */}
       {chatType === "private" && (
         <div>
-          <button onClick={() => setShowRecipientInput((prev) => !prev)}>
+          <button
+            className="btn"
+            onClick={() => setShowRecipientInput((prev) => !prev)}
+          >
             {showRecipientInput ? "Скрыть поле ввода" : "Ввести ID собеседника"}
           </button>
           {showRecipientInput && (
@@ -492,9 +497,11 @@ const Chat = () => {
                 value={recipientId}
                 onChange={(e) => setRecipientId(e.target.value)}
                 placeholder="Введите ID собеседника"
-                className="recipient-input"
+                className="recipient-input input"
               />
-              <button onClick={confirmRecipient}>Подтвердить получателя</button>
+              <button className="btn" onClick={confirmRecipient}>
+                Подтвердить получателя
+              </button>
             </div>
           )}
         </div>
@@ -517,17 +524,24 @@ const Chat = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Введите сообщение..."
-          className="text-input"
+          className="text-input input"
         />
-        {/* Если нужно отправлять файлы */}
-        <input type="file" onChange={handleFileChange} className="file-input" />
         <button
+          className="btn"
           onClick={() => sendMessage(input)}
           disabled={chatType === "private" && !confirmedRecipientId}
         >
           Отправить
         </button>
-        <button onClick={sendFile} disabled={!file}>
+      </div>
+      <div className="input-area">
+        {/* Если нужно отправлять файлы */}
+        <input
+          type="file"
+          onChange={handleFileChange}
+          className="file-input input"
+        />
+        <button className="btn" onClick={sendFile} disabled={!file}>
           Отправить файл
         </button>
       </div>
