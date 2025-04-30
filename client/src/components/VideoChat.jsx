@@ -41,7 +41,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const pcRef = useRef(null);
   const mediaKeyRef = useRef(null);
   const bufferedIce = useRef([]);
-  const initializedReceivers = new WeakSet();
+  const initializedReceiversRef = useRef(new WeakSet());
 
   // ============ Sender transform ============
   const setupSenderTransform = (sender) => {
@@ -77,14 +77,14 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // ============ Receiver transform ============
   const setupReceiverTransform = (receiver) => {
-    if (initializedReceivers.has(receiver)) {
+    if (initializedReceiversRef.current.has(receiver)) {
       console.log("⏭ Receiver already initialized:", receiver.track.id);
       return;
     }
 
     if (!receiver.createEncodedStreams || receiver.track.kind !== "video") {
       console.log("— skipping transform, not a video receiver");
-      initializedReceivers.add(receiver);
+      initializedReceiversRef.current.add(receiver);
       return;
     }
     let streams;
@@ -96,10 +96,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         iceConnectionState: pcRef.current?.iceConnectionState,
         trackReadyState: receiver.track.readyState,
       });
-      initializedReceivers.add(receiver);
+      initializedReceiversRef.current.add(receiver);
       return;
     }
-    initializedReceivers.add(receiver);
+    initializedReceiversRef.current.add(receiver);
     const { readable, writable } = streams;
     const transform = new TransformStream({
       async transform(frame, ctrl) {
@@ -325,7 +325,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     setRemoteStream(null);
     setCallStatus("idle");
     bufferedIce.current = [];
-    initializedReceivers.clear();
+    initializedReceiversRef.current = new WeakSet();
   };
 
   return (
