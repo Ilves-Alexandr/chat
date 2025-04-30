@@ -140,23 +140,23 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const d = e.detail;
       const pc = pcRef.current;
       if (!pc) return;
-      if (d.signalType === "video_answer") {
-        console.log("🔄 [video_answer] setting remote description");
-        await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
-        pc.getReceivers().forEach((receiver) => {
-          console.log(
-            "➕ Applying receiver transform for",
-            receiver.track.kind,
-            receiver.track.id
-          );
-          setupReceiverTransform(receiver);
-        });
+      if (d.signalType === "video_offer") {
+        pc.addTransceiver("video", { direction: "sendrecv" });
+        pc.addTransceiver("audio", { direction: "sendrecv" });
+        await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+        pc.getReceivers().forEach(setupReceiverTransform);
         console.log(
           "🔄 Receivers after SDP:",
           pc.getReceivers().map((r) => r.track.id)
         );
         setCallStatus("in_call");
-      } else if (d.signalType === "ice_candidate") {
+      }
+      if (d.signalType === "video_answer") {
+        await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+        pc.getReceivers().forEach(setupReceiverTransform);
+        setCallStatus("in_call");
+      }
+      if (d.signalType === "ice_candidate") {
         if (pc.signalingState === "closed") return;
         if (!pc.remoteDescription?.type) {
           bufferedIce.current.push(d.candidate);
@@ -202,10 +202,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
-    const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
-    const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
-    setupReceiverTransform(recvVideo.receiver);
-    setupReceiverTransform(recvAudio.receiver);
+    const transVideo = pc.addTransceiver("video", { direction: "sendrecv" });
+    const transAudio = pc.addTransceiver("audio", { direction: "sendrecv" });
+    setupReceiverTransform(transVideo.receiver);
+    setupReceiverTransform(transAudio.receiver);
     // — Локальные треки + шифрование
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -255,10 +255,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
       // — Резервируем ресиверы ДО setRemoteDescription
-      const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
-      const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
-      setupReceiverTransform(recvVideo.receiver);
-      setupReceiverTransform(recvAudio.receiver);
+      const transVideo = pc.addTransceiver("video", { direction: "sendrecv" });
+      const transAudio = pc.addTransceiver("audio", { direction: "sendrecv" });
+      setupReceiverTransform(transVideo.receiver);
+      setupReceiverTransform(transAudio.receiver);
       // — Локальные треки + шифрование
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
