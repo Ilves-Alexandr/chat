@@ -204,17 +204,6 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
-    // Логи состояния
-    pc.oniceconnectionstatechange = () =>
-      console.log("ICE state:", pc.iceConnectionState);
-    pc.onsignalingstatechange = () =>
-      console.log("Signaling state:", pc.signalingState);
-    // — Резервируем ресиверы и навешиваем дешифрование до offer
-    const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
-    const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
-    console.log("➕ Added recv transceivers");
-    setupReceiverTransform(recvVideo.receiver);
-    setupReceiverTransform(recvAudio.receiver);
     // — Локальные треки + шифрование
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -222,9 +211,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
-    stream
-      .getTracks()
-      .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
+    stream.getTracks().forEach(track => {
+      const sender = pc.addTrack(track, stream);
+      setupSenderTransform(sender);   // <— НИКОГДА не позже setLocalDescription
+    });
     // — ICE candidates
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -262,16 +252,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
-
-      pc.oniceconnectionstatechange = () =>
-        console.log("ICE state:", pc.iceConnectionState);
-      pc.onsignalingstatechange = () =>
-        console.log("Signaling state:", pc.signalingState);
-
       // — Резервируем ресиверы ДО setRemoteDescription
       const recvVideo = pc.addTransceiver("video", { direction: "recvonly" });
       const recvAudio = pc.addTransceiver("audio", { direction: "recvonly" });
-      console.log("➕ Added recv transceivers");
       setupReceiverTransform(recvVideo.receiver);
       setupReceiverTransform(recvAudio.receiver);
        // — Локальные треки + шифрование
@@ -280,10 +263,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
         audio: true,
       });
       setLocalStream(stream);
-      localVideoRef.current.srcObject = stream;
-      stream
-        .getTracks()
-        .forEach((track) => setupSenderTransform(pc.addTrack(track, stream)));
+      stream.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, stream);
+        setupSenderTransform(sender);
+      });
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           ws.send(
