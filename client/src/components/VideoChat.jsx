@@ -191,6 +191,11 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     if (!mediaKeyRef.current) mediaKeyRef.current = await generateMediaKey();
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
+    const transVideo = pc.addTransceiver("video", { direction: "sendrecv" });
+    const transAudio = pc.addTransceiver("audio", { direction: "sendrecv" });
+    setupReceiverTransform(transVideo.receiver);
+    setupReceiverTransform(transAudio.receiver);
+    // — Локальные треки + шифрование
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -199,7 +204,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     localVideoRef.current.srcObject = stream;
     stream.getTracks().forEach((track) => {
       const sender = pc.addTrack(track, stream);
-      setupSenderTransform(sender);
+      setupSenderTransform(sender); // <— НИКОГДА не позже setLocalDescription
     });
     // — ICE candidates
     pc.onicecandidate = (e) => {
@@ -290,6 +295,9 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       }
       bufferedIce.current = [];
       const answer = await pc.createAnswer();
+      pc.getTransceivers().forEach(t => {
+        t.direction = "sendrecv";
+      });
       await pc.setLocalDescription(answer);
       console.log(
         "🔄 [handleOffer] local SDP answer:",
