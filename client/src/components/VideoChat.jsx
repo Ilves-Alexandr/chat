@@ -45,6 +45,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // ============ Sender transform ============
   const setupSenderTransform = (sender) => {
+    if (!mediaKeyRef.current) {
+      console.warn("⚠️ Sender transform skipped: key not ready yet");
+      return;
+    }
     if (!sender.createEncodedStreams || sender.track.kind !== "video") return;
     let streams;
     try {
@@ -77,6 +81,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
 
   // ============ Receiver transform ============
   const setupReceiverTransform = (receiver) => {
+    if (!mediaKeyRef.current) {
+      console.warn("⚠️ Receiver transform skipped: key not ready yet");
+      return;
+    }
     if (initializedReceiversRef.current.has(receiver)) {
       console.log("⏭ Receiver already initialized:", receiver.track.id);
       return;
@@ -124,6 +132,10 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   // ============ WebSocket signalling ============
   useEffect(() => {
     if (!ws) return;
+    (async () => {
+      mediaKeyRef.current = await generateMediaKey();
+      console.log("🔑 MediaKey ready");
+    })();
     const onMsg = (e) => {
       const d = JSON.parse(e.data);
       if (d.type !== "video_signal") return;
@@ -190,105 +202,131 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   const startCall = async () => {
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
-  
-    const stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    setLocalStream(stream);
-    localVideoRef.current.srcObject = stream;
-  
-    stream.getTracks().forEach(track => {
-      const sender = pc.addTrack(track, stream);
-      setupSenderTransform(sender);
-    });
-  
-    pc.onicecandidate = e => {
-      if (e.candidate) {
-        ws.send(JSON.stringify({
-          type: "video_signal",
-          signalType: "ice_candidate",
-          candidate: e.candidate,
-          clientId, recipientId,
-        }));
-      }
-    };
-  
-    pc.ontrack = e => {
-      console.log("📥 ontrack:", e.receiver.track.kind, e.streams);
-      const [remote] = e.streams;
-      setRemoteStream(remote);
-      remoteVideoRef.current.srcObject = remote;
-      remoteVideoRef.current.play().catch(()=>{});
-    };
-  
-    // генерируем оффер только после того, как добавлены локальные треки
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(JSON.stringify({
-      type: "video_signal",
-      signalType: "video_offer",
-      offer: pc.localDescription,
-      clientId, recipientId,
-    }));
-    setCallStatus("calling");
-  };
-  // ============ Receiver ============
-  const handleOffer = useCallback(async (d) => {
-    // 1) создаём RTCPeerConnection
-    const pc = new RTCPeerConnection(iceConfig);
-    pcRef.current = pc;
-  
-    // 2) получаем камеру/микрофон **ЕЩЁ до** setRemoteDescription
+
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
-  
-    // 3) добавляем реальные треки к соединению (по одному addTrack() на каждый)
+
     stream.getTracks().forEach((track) => {
       const sender = pc.addTrack(track, stream);
       setupSenderTransform(sender);
     });
-  
-    // 4) сигналим свои ICE-кандидаты
+
     pc.onicecandidate = (e) => {
       if (e.candidate) {
-        ws.send(JSON.stringify({
-          type: "video_signal",
-          signalType: "ice_candidate",
-          candidate: e.candidate,
-          clientId, recipientId,
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "video_signal",
+            signalType: "ice_candidate",
+            candidate: e.candidate,
+            clientId,
+            recipientId,
+          })
+        );
       }
     };
-  
-    // 5) вешаем ontrack — сюда придут remote-потоки от того, кто звонил
+
     pc.ontrack = (e) => {
-      console.log("📥 ontrack:", e.receiver.track.kind, "streams:", e.streams);
+      console.log("📥 ontrack:", e.receiver.track.kind, e.streams);
       const [remote] = e.streams;
       setRemoteStream(remote);
       remoteVideoRef.current.srcObject = remote;
       remoteVideoRef.current.play().catch(() => {});
     };
-  
-    // 6) теперь принимаем SDP-оффер
-    console.log("🔄 [handleOffer] setting remote description");
-    await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-  
-    // 7) и только теперь создаём ответ
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    console.log("🔄 [handleOffer] local SDP answer:", pc.localDescription.sdp);
-  
-    // 8) шлём его обратно
-    ws.send(JSON.stringify({
-      type: "video_signal",
-      signalType: "video_answer",
-      answer: pc.localDescription,
-      clientId, recipientId,
-    }));
-    setCallStatus("in_call");
-  }, [ws, clientId, recipientId]);
+
+    // генерируем оффер только после того, как добавлены локальные треки
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ws.send(
+      JSON.stringify({
+        type: "video_signal",
+        signalType: "video_offer",
+        offer: pc.localDescription,
+        clientId,
+        recipientId,
+      })
+    );
+    setCallStatus("calling");
+  };
+  // ============ Receiver ============
+  const handleOffer = useCallback(
+    async (d) => {
+      // 1) создаём RTCPeerConnection
+      const pc = new RTCPeerConnection(iceConfig);
+      pcRef.current = pc;
+
+      // 2) получаем камеру/микрофон **ЕЩЁ до** setRemoteDescription
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setLocalStream(stream);
+      localVideoRef.current.srcObject = stream;
+
+      // 3) добавляем реальные треки к соединению (по одному addTrack() на каждый)
+      stream.getTracks().forEach((track) => {
+        const sender = pc.addTrack(track, stream);
+        setupSenderTransform(sender);
+      });
+
+      // 4) сигналим свои ICE-кандидаты
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          ws.send(
+            JSON.stringify({
+              type: "video_signal",
+              signalType: "ice_candidate",
+              candidate: e.candidate,
+              clientId,
+              recipientId,
+            })
+          );
+        }
+      };
+
+      // 5) вешаем ontrack — сюда придут remote-потоки от того, кто звонил
+      pc.ontrack = (e) => {
+        console.log(
+          "📥 ontrack:",
+          e.receiver.track.kind,
+          "streams:",
+          e.streams
+        );
+        const [remote] = e.streams;
+        setRemoteStream(remote);
+        remoteVideoRef.current.srcObject = remote;
+        remoteVideoRef.current.play().catch(() => {});
+      };
+
+      // 6) теперь принимаем SDP-оффер
+      console.log("🔄 [handleOffer] setting remote description");
+      await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+
+      // 7) и только теперь создаём ответ
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      console.log(
+        "🔄 [handleOffer] local SDP answer:",
+        pc.localDescription.sdp
+      );
+
+      // 8) шлём его обратно
+      ws.send(
+        JSON.stringify({
+          type: "video_signal",
+          signalType: "video_answer",
+          answer: pc.localDescription,
+          clientId,
+          recipientId,
+        })
+      );
+      setCallStatus("in_call");
+    },
+    [ws, clientId, recipientId]
+  );
 
   const endCall = () => {
     pcRef.current?.close();
