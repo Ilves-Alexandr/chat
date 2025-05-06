@@ -3,11 +3,13 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./VideoChat.css";
 
+// AES-GCM key generation и шифрование/дешифрование
 async function generateMediaKey() {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
 }
 async function encryptData(data, key, iv) {
   return crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
@@ -30,220 +32,221 @@ const iceConfig = {
   ],
 };
 
-const VideoChat = ({ ws, clientId, recipientId }) => {
+export default function VideoChat({ ws, clientId, recipientId }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, in_call
-  const [incomingOffer, setIncomingOffer] = useState(null);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const pcRef = useRef(null);
   const mediaKeyRef = useRef(null);
-  const bufferedIce = useRef([]);
-  const initializedReceiversRef = useRef(new WeakSet());
 
-  // ============ Sender transform ============
+  // буфер для удалённых кандидатов до setRemoteDescription
+  const incomingIceBuffer = useRef([]);
+
+  // ================= transforms =================
   const setupSenderTransform = (sender) => {
-    if (!mediaKeyRef.current) {
-      console.warn("⚠️ Sender transform skipped: key not ready yet");
-      return;
-    }
-    if (!sender.createEncodedStreams || sender.track.kind !== "video") return;
+    if (!mediaKeyRef.current || sender.track.kind !== "video") return;
+    if (!sender.createEncodedStreams) return;
     let streams;
     try {
       streams = sender.createEncodedStreams();
-    } catch (err) {
-      console.warn("🔐 Sender.createEncodedStreams failed:", err);
+    } catch (e) {
+      console.warn("Sender.createEncodedStreams:", e);
       return;
     }
     const { readable, writable } = streams;
-    const transform = new TransformStream({
+    const t = new TransformStream({
       async transform(frame, ctrl) {
         const iv = getRandomIV();
-        try {
-          const enc = await encryptData(frame.data, mediaKeyRef.current, iv);
-          const ivArr = new Uint8Array(iv);
-          const encArr = new Uint8Array(enc);
-          const combined = new Uint8Array(ivArr.length + encArr.length);
-          combined.set(ivArr, 0);
-          combined.set(encArr, ivArr.length);
-          frame.data = combined.buffer;
-          ctrl.enqueue(frame);
-        } catch (e) {
-          console.error("🔐 Encryption error:", e);
-        }
+        const enc = await encryptData(frame.data, mediaKeyRef.current, iv);
+        const ivArr = new Uint8Array(iv), encArr = new Uint8Array(enc);
+        const buf = new Uint8Array(ivArr.length + encArr.length);
+        buf.set(ivArr, 0);
+        buf.set(encArr, ivArr.length);
+        frame.data = buf.buffer;
+        ctrl.enqueue(frame);
       },
     });
-    readable.pipeThrough(transform).pipeTo(writable);
-    console.log("✅ Sender transform established for sender", sender.track.id);
+    readable.pipeThrough(t).pipeTo(writable);
   };
 
-  // ============ Receiver transform ============
   const setupReceiverTransform = (receiver) => {
-    if (!mediaKeyRef.current) {
-      console.warn("⚠️ Receiver transform skipped: key not ready yet");
-      return;
-    }
-    if (initializedReceiversRef.current.has(receiver)) {
-      console.log("⏭ Receiver already initialized:", receiver.track.id);
-      return;
-    }
-
-    if (!receiver.createEncodedStreams || receiver.track.kind !== "video") {
-      console.log("— skipping transform, not a video receiver");
-      initializedReceiversRef.current.add(receiver);
-      return;
-    }
+    if (!mediaKeyRef.current || receiver.track.kind !== "video") return;
+    if (!receiver.createEncodedStreams) return;
     let streams;
     try {
       streams = receiver.createEncodedStreams();
-    } catch (err) {
-      console.error("🔓 Receiver.createEncodedStreams failed:", err, {
-        signalingState: pcRef.current?.signalingState,
-        iceConnectionState: pcRef.current?.iceConnectionState,
-        trackReadyState: receiver.track.readyState,
-      });
-      initializedReceiversRef.current.add(receiver);
+    } catch (e) {
+      console.warn("Receiver.createEncodedStreams:", e);
       return;
     }
-    initializedReceiversRef.current.add(receiver);
     const { readable, writable } = streams;
-    const transform = new TransformStream({
+    const t = new TransformStream({
       async transform(frame, ctrl) {
-        try {
-          const dataArr = new Uint8Array(frame.data);
-          const iv = dataArr.slice(0, 12);
-          const enc = dataArr.slice(12).buffer;
-          const dec = await decryptData(enc, mediaKeyRef.current, iv);
-          frame.data = dec;
-          ctrl.enqueue(frame);
-        } catch (e) {
-          console.error("🔓 Decryption error:", e);
-        }
+        const arr = new Uint8Array(frame.data);
+        const iv = arr.slice(0, 12);
+        const enc = arr.slice(12).buffer;
+        const dec = await decryptData(enc, mediaKeyRef.current, iv);
+        frame.data = dec;
+        ctrl.enqueue(frame);
       },
     });
-    readable.pipeThrough(transform).pipeTo(writable);
-    console.log(
-      "✅ Receiver transform established for receiver",
-      receiver.track.id
-    );
+    readable.pipeThrough(t).pipeTo(writable);
   };
-  // ============ WebSocket signalling ============
+
+  // ============ signalling handler ============
   useEffect(() => {
     if (!ws) return;
+
+    // сразу генерируем ключ для шифрования видео-трафика
     (async () => {
       mediaKeyRef.current = await generateMediaKey();
-      console.log("🔑 MediaKey ready");
     })();
-    const onMsg = (e) => {
-      const d = JSON.parse(e.data);
-      if (d.type !== "video_signal") return;
-      if (d.signalType === "video_offer") setIncomingOffer(d);
-      else
-        document.dispatchEvent(new CustomEvent("videoSignal", { detail: d }));
-    };
-    ws.addEventListener("message", onMsg);
-    return () => ws.removeEventListener("message", onMsg);
-  }, [ws]);
 
-  useEffect(() => {
-    const handler = async (e) => {
-      const d = e.detail;
+    const onMessage = async (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type !== "video_signal") return;
+
+      // единая точка обработки сигналов
       const pc = pcRef.current;
-      if (!pc) return;
-      if (d.signalType === "video_answer") {
-        await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
-        pc.getReceivers().forEach(setupReceiverTransform);
-        setCallStatus("in_call");
-      }
-      if (d.signalType === "ice_candidate") {
-        if (pc.signalingState === "closed") return;
-        if (!pc.remoteDescription?.type) {
-          bufferedIce.current.push(d.candidate);
-        } else {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-            console.log("✅ ICE candidate added");
-          } catch (err) {
-            console.error("🔴 ICE candidate add error:", err);
+
+      // ======== OFFER ========
+      if (msg.signalType === "video_offer") {
+        // создаём новое соединение
+        const pc = new RTCPeerConnection(iceConfig);
+        pcRef.current = pc;
+        incomingIceBuffer.current = [];
+
+        // добавляем sendrecv-трансиверы до anything
+        pc.addTransceiver("video", { direction: "sendrecv" });
+        pc.addTransceiver("audio", { direction: "sendrecv" });
+
+        // локальное видео/аудио
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        setLocalStream(stream);
+        localVideoRef.current.srcObject = stream;
+        stream.getTracks().forEach((t) => {
+          const sender = pc.addTrack(t, stream);
+          setupSenderTransform(sender);
+        });
+
+        // свои ICE-кандидаты
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            ws.send(
+              JSON.stringify({
+                type: "video_signal",
+                signalType: "ice_candidate",
+                candidate: e.candidate,
+                clientId,
+                recipientId,
+              })
+            );
           }
+        };
+
+        // буферизация чужих кандидатов
+        document.addEventListener("videoSignal", async (ev) => {
+          const d = ev.detail;
+          if (d.signalType === "ice_candidate") {
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+              await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+            } else {
+              incomingIceBuffer.current.push(d.candidate);
+            }
+          }
+        });
+
+        // принимаем remote stream
+        pc.ontrack = (e) => {
+          const [rs] = e.streams;
+          setRemoteStream(rs);
+          remoteVideoRef.current.srcObject = rs;
+        };
+
+        // ставим оффер
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+
+        // вываливаем накопленные ICE
+        for (const c of incomingIceBuffer.current) {
+          await pc.addIceCandidate(new RTCIceCandidate(c));
         }
+        incomingIceBuffer.current = [];
+
+        // создаём ответ
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(
+          JSON.stringify({
+            type: "video_signal",
+            signalType: "video_answer",
+            answer: pc.localDescription,
+            clientId,
+            recipientId,
+          })
+        );
+        setCallStatus("in_call");
+        return;
+      }
+
+      // ======== ANSWER ========
+      if (msg.signalType === "video_answer" && pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        setCallStatus("in_call");
+        return;
+      }
+
+      // ======== ICE ========
+      if (msg.signalType === "ice_candidate" && pc) {
+        if (pc.remoteDescription && pc.remoteDescription.type) {
+          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        } else {
+          incomingIceBuffer.current.push(msg.candidate);
+        }
+        return;
       }
     };
-    document.addEventListener("videoSignal", handler);
-    return () => document.removeEventListener("videoSignal", handler);
-  }, []);
-  // ============ Call control ============
-  const acceptCall = () => {
-    if (incomingOffer) handleOffer(incomingOffer);
-    setIncomingOffer(null);
-  };
-  const rejectCall = () => {
-    setIncomingOffer(null);
-    toast.info("Звонок отклонён");
-  };
-  const makeOffer = useCallback(async () => {
-    const pc = pcRef.current;
-    pc.addTransceiver("video", { direction: "recvonly" });
-    pc.addTransceiver("audio", { direction: "recvonly" });
-    const offer = await pc.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true,
-    });
-    await pc.setLocalDescription(offer);
-    console.log("🔄 [makeOffer] local SDP:", pc.localDescription.sdp);
-    ws.send(
-      JSON.stringify({
-        type: "video_signal",
-        signalType: "video_offer",
-        offer: pc.localDescription,
-        clientId,
-        recipientId,
-      })
-    );
+
+    ws.addEventListener("message", onMessage);
+    return () => ws.removeEventListener("message", onMessage);
   }, [ws, clientId, recipientId]);
-  const makeAnswer = useCallback(
-    async (pc, incomingOffer) => {
-      // Создаём ответ
-      const answer = await pc.createAnswer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      });
-      // Устанавливаем локальное описание
-      await pc.setLocalDescription(answer);
-      console.log("🔄 [makeAnswer] local SDP:", pc.localDescription.sdp);
-      // Отправляем его по WS
-      ws.send(
-        JSON.stringify({
-          type: "video_signal",
-          signalType: "video_answer",
-          answer: pc.localDescription,
-          clientId,
-          recipientId,
-        })
-      );
-    },
-    [ws, clientId, recipientId]
-  );
 
   // ============ Initiator ============
-  const startCall = async () => {
+  const startCall = useCallback(async () => {
+    // создаём RTCPeerConnection и кладём в ref
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
+    incomingIceBuffer.current = [];
 
+    // траснсиверы чтобы получить удалёнку
+    pc.addTransceiver("video", { direction: "sendrecv" });
+    pc.addTransceiver("audio", { direction: "sendrecv" });
+
+    // локальное
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
     setLocalStream(stream);
     localVideoRef.current.srcObject = stream;
-
-    stream.getTracks().forEach((track) => {
-      const sender = pc.addTrack(track, stream);
-      setupSenderTransform(sender);
+    stream.getTracks().forEach((t) => {
+      const s = pc.addTrack(t, stream);
+      setupSenderTransform(s);
     });
 
+    // remote ontrack
+    pc.ontrack = (e) => {
+      const [rs] = e.streams;
+      setRemoteStream(rs);
+      remoteVideoRef.current.srcObject = rs;
+    };
+
+    // ICE candidates
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         ws.send(
@@ -258,96 +261,20 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       }
     };
 
-    pc.ontrack = (e) => {
-      console.log("📥 ontrack:", e.receiver.track.kind, e.streams);
-      const [remote] = e.streams;
-      setRemoteStream(remote);
-      remoteVideoRef.current.srcObject = remote;
-      remoteVideoRef.current.play().catch(() => {});
-    };
-    pc.addTransceiver("video", { direction: "sendrecv" });
-    pc.addTransceiver("audio", { direction: "sendrecv" });
-    await makeOffer();
-    setCallStatus("calling");
-  };
-  // ============ Receiver ============
-  const handleOffer = useCallback(
-    async (d) => {
-      const pc = new RTCPeerConnection(iceConfig);
-      pcRef.current = pc;
-  
-      // буферим приходящие до готовности кандидаты
-      const iceBuffer = [];
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          ws.send(JSON.stringify({
-            type: "video_signal",
-            signalType: "ice_candidate",
-            candidate: e.candidate,
-            clientId,
-            recipientId,
-          }));
-        }
-      };
-      // когда приходят кандидаты с удалённой стороны — буферим, если ещё нет remoteDesc
-      document.addEventListener("videoSignal", async (e) => {
-        const msg = e.detail;
-        if (msg.signalType === "ice_candidate") {
-          try {
-            if (pc.remoteDescription && pc.remoteDescription.type) {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-            } else {
-              iceBuffer.push(msg.candidate);
-            }
-          } catch (err) {
-            console.warn("Ошибка при добавлении ICE:", err);
-          }
-        }
-      });
-  
-      // сразу попросим sendrecv, чтобы в SDP автоматически включились recv секции
-      pc.addTransceiver("video", { direction: "sendrecv" });
-      pc.addTransceiver("audio", { direction: "sendrecv" });
-  
-      // захват своей камеры/микрофона
-      const local = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      setLocalStream(local);
-      localVideoRef.current.srcObject = local;
-      local.getTracks().forEach(track => pc.addTrack(track, local));
-  
-      // при ontrack сразу выводим remote-поток
-      pc.ontrack = e => {
-        const [stream] = e.streams;
-        setRemoteStream(stream);
-        remoteVideoRef.current.srcObject = stream;
-      };
-  
-      // 1) принимаем оффер
-      await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-  
-      // 2) сбрасываем накопленные кандидаты
-      for (const c of iceBuffer) {
-        await pc.addIceCandidate(new RTCIceCandidate(c));
-      }
-  
-      // 3) создаём ответ
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-  
-      // 4) шлём ответ
-      ws.send(JSON.stringify({
+    // self-offer
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ws.send(
+      JSON.stringify({
         type: "video_signal",
-        signalType: "video_answer",
-        answer: pc.localDescription,
+        signalType: "video_offer",
+        offer: pc.localDescription,
         clientId,
         recipientId,
-      }));
-  
-      setCallStatus("in_call");
-    },
-    [ws, clientId, recipientId]
-  );
-  
+      })
+    );
+    setCallStatus("calling");
+  }, [ws, clientId, recipientId]);
 
   const endCall = () => {
     pcRef.current?.close();
@@ -356,39 +283,22 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
-    bufferedIce.current = [];
-    initializedReceiversRef.current = new WeakSet();
   };
 
   return (
     <div className="video-chat-container">
       <h2>Video Chat</h2>
-      {incomingOffer && (
-        <div className="incoming-call-banner">
-          <p>Входящий звонок от {incomingOffer.clientId}</p>
-          <button className="btn" onClick={acceptCall}>
-            Принять
-          </button>
-          <button className="btn" onClick={rejectCall}>
-            Отклонить
-          </button>
-        </div>
-      )}
       {callStatus === "idle" ? (
-        <button className="btn" onClick={startCall}>
-          Начать звонок
-        </button>
+        <button onClick={startCall}>Начать звонок</button>
       ) : (
-        <button className="btn" onClick={endCall}>
-          Завершить звонок
-        </button>
+        <button onClick={endCall}>Завершить звонок</button>
       )}
       <div className="video-container">
-        <div className="local-video">
+        <div>
           <h3>Ваше видео</h3>
           <video ref={localVideoRef} autoPlay muted playsInline />
         </div>
-        <div className="remote-video">
+        <div>
           <h3>Видео собеседника</h3>
           <video ref={remoteVideoRef} autoPlay playsInline />
         </div>
@@ -396,6 +306,4 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
-};
-
-export default VideoChat;
+}
