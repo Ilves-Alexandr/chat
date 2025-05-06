@@ -273,70 +273,81 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   // ============ Receiver ============
   const handleOffer = useCallback(
     async (d) => {
-      // 1) создаём RTCPeerConnection
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
   
-      // 2) просим видео/аудио от удалённого сразу
+      // буферим приходящие до готовности кандидаты
+      const iceBuffer = [];
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          ws.send(JSON.stringify({
+            type: "video_signal",
+            signalType: "ice_candidate",
+            candidate: e.candidate,
+            clientId,
+            recipientId,
+          }));
+        }
+      };
+      // когда приходят кандидаты с удалённой стороны — буферим, если ещё нет remoteDesc
+      document.addEventListener("videoSignal", async (e) => {
+        const msg = e.detail;
+        if (msg.signalType === "ice_candidate") {
+          try {
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            } else {
+              iceBuffer.push(msg.candidate);
+            }
+          } catch (err) {
+            console.warn("Ошибка при добавлении ICE:", err);
+          }
+        }
+      });
+  
+      // сразу попросим sendrecv, чтобы в SDP автоматически включились recv секции
       pc.addTransceiver("video", { direction: "sendrecv" });
       pc.addTransceiver("audio", { direction: "sendrecv" });
   
-      // 3) получаем свою камеру/микрофон
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      setLocalStream(stream);
-      localVideoRef.current.srcObject = stream;
+      // захват своей камеры/микрофона
+      const local = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(local);
+      localVideoRef.current.srcObject = local;
+      local.getTracks().forEach(track => pc.addTrack(track, local));
   
-      // 4) добавляем свои треки
-      stream.getTracks().forEach((track) => {
-        const sender = pc.addTrack(track, stream);
-        setupSenderTransform(sender);
-      });
-  
-      // 5) ICE-кандидаты
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          ws.send(
-            JSON.stringify({
-              type: "video_signal",
-              signalType: "ice_candidate",
-              candidate: e.candidate,
-              clientId,
-              recipientId,
-            })
-          );
-        }
+      // при ontrack сразу выводим remote-поток
+      pc.ontrack = e => {
+        const [stream] = e.streams;
+        setRemoteStream(stream);
+        remoteVideoRef.current.srcObject = stream;
       };
   
-      // 6) ontrack для приёма MediaStream от звонящего
-      pc.ontrack = (e) => {
-        const [remote] = e.streams;
-        setRemoteStream(remote);
-        remoteVideoRef.current.srcObject = remote;
-      };
-  
-      // 7) устанавливаем оффер из сети
+      // 1) принимаем оффер
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
   
-      // 8) создаём ответ и отправляем его
+      // 2) сбрасываем накопленные кандидаты
+      for (const c of iceBuffer) {
+        await pc.addIceCandidate(new RTCIceCandidate(c));
+      }
+  
+      // 3) создаём ответ
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      ws.send(
-        JSON.stringify({
-          type: "video_signal",
-          signalType: "video_answer",
-          answer: pc.localDescription,
-          clientId,
-          recipientId,
-        })
-      );
+  
+      // 4) шлём ответ
+      ws.send(JSON.stringify({
+        type: "video_signal",
+        signalType: "video_answer",
+        answer: pc.localDescription,
+        clientId,
+        recipientId,
+      }));
   
       setCallStatus("in_call");
     },
     [ws, clientId, recipientId]
   );
+  
 
   const endCall = () => {
     pcRef.current?.close();
