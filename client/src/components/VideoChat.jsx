@@ -189,7 +189,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     pc.addTransceiver("audio", { direction: "recvonly" });
     const offer = await pc.createOffer({
       offerToReceiveAudio: true,
-      offerToReceiveVideo: true
+      offerToReceiveVideo: true,
     });
     await pc.setLocalDescription(offer);
     console.log("🔄 [makeOffer] local SDP:", pc.localDescription.sdp);
@@ -226,7 +226,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
     },
     [ws, clientId, recipientId]
   );
-  
+
   // ============ Initiator ============
   const startCall = async () => {
     const pc = new RTCPeerConnection(iceConfig);
@@ -265,6 +265,8 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       remoteVideoRef.current.srcObject = remote;
       remoteVideoRef.current.play().catch(() => {});
     };
+    pc.addTransceiver("video", { direction: "sendrecv" });
+    pc.addTransceiver("audio", { direction: "sendrecv" });
     await makeOffer();
     setCallStatus("calling");
   };
@@ -274,22 +276,26 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       // 1) создаём RTCPeerConnection
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
-
-      // 2) получаем камеру/микрофон **ЕЩЁ до** setRemoteDescription
+  
+      // 2) просим видео/аудио от удалённого сразу
+      pc.addTransceiver("video", { direction: "sendrecv" });
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+  
+      // 3) получаем свою камеру/микрофон
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
       setLocalStream(stream);
       localVideoRef.current.srcObject = stream;
-
-      // 3) добавляем реальные треки к соединению (по одному addTrack() на каждый)
+  
+      // 4) добавляем свои треки
       stream.getTracks().forEach((track) => {
         const sender = pc.addTrack(track, stream);
         setupSenderTransform(sender);
       });
-
-      // 4) сигналим свои ICE-кандидаты
+  
+      // 5) ICE-кандидаты
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           ws.send(
@@ -303,34 +309,20 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           );
         }
       };
-
-      // 5) вешаем ontrack — сюда придут remote-потоки от того, кто звонил
+  
+      // 6) ontrack для приёма MediaStream от звонящего
       pc.ontrack = (e) => {
-        console.log(
-          "📥 ontrack:",
-          e.receiver.track.kind,
-          "streams:",
-          e.streams
-        );
         const [remote] = e.streams;
         setRemoteStream(remote);
         remoteVideoRef.current.srcObject = remote;
-        remoteVideoRef.current.play().catch(() => {});
       };
-
-      // 6) теперь принимаем SDP-оффер
-      console.log("🔄 [handleOffer] setting remote description");
+  
+      // 7) устанавливаем оффер из сети
       await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
-
-      // 7) и только теперь создаём ответ
+  
+      // 8) создаём ответ и отправляем его
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      console.log(
-        "🔄 [handleOffer] local SDP answer:",
-        pc.localDescription.sdp
-      );
-
-      // 8) шлём его обратно
       ws.send(
         JSON.stringify({
           type: "video_signal",
@@ -340,7 +332,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           recipientId,
         })
       );
-      await makeAnswer(pc, d.offer);
+  
       setCallStatus("in_call");
     },
     [ws, clientId, recipientId]
