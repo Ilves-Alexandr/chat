@@ -185,7 +185,12 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
   };
   const makeOffer = useCallback(async () => {
     const pc = pcRef.current;
-    const offer = await pc.createOffer();
+    pc.addTransceiver("video", { direction: "recvonly" });
+    pc.addTransceiver("audio", { direction: "recvonly" });
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true
+    });
     await pc.setLocalDescription(offer);
     console.log("🔄 [makeOffer] local SDP:", pc.localDescription.sdp);
     ws.send(
@@ -198,6 +203,30 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       })
     );
   }, [ws, clientId, recipientId]);
+  const makeAnswer = useCallback(
+    async (pc, incomingOffer) => {
+      // Создаём ответ
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
+      // Устанавливаем локальное описание
+      await pc.setLocalDescription(answer);
+      console.log("🔄 [makeAnswer] local SDP:", pc.localDescription.sdp);
+      // Отправляем его по WS
+      ws.send(
+        JSON.stringify({
+          type: "video_signal",
+          signalType: "video_answer",
+          answer: pc.localDescription,
+          clientId,
+          recipientId,
+        })
+      );
+    },
+    [ws, clientId, recipientId]
+  );
+  
   // ============ Initiator ============
   const startCall = async () => {
     const pc = new RTCPeerConnection(iceConfig);
@@ -236,19 +265,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
       remoteVideoRef.current.srcObject = remote;
       remoteVideoRef.current.play().catch(() => {});
     };
-
-    // генерируем оффер только после того, как добавлены локальные треки
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(
-      JSON.stringify({
-        type: "video_signal",
-        signalType: "video_offer",
-        offer: pc.localDescription,
-        clientId,
-        recipientId,
-      })
-    );
+    await makeOffer();
     setCallStatus("calling");
   };
   // ============ Receiver ============
@@ -323,6 +340,7 @@ const VideoChat = ({ ws, clientId, recipientId }) => {
           recipientId,
         })
       );
+      await makeAnswer(pc, d.offer);
       setCallStatus("in_call");
     },
     [ws, clientId, recipientId]
