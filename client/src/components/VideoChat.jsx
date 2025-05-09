@@ -48,6 +48,10 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const setupSenderTransform = (sender) => {
     if (!mediaKeyRef.current || sender.track.kind !== "video") return;
     if (!sender.createEncodedStreams) return;
+    if (typeof sender.createEncodedStreams !== "function") {
+      console.warn("EncodedStreams не поддерживается в этом браузере");
+      return;
+    }
     let streams;
     try {
       streams = sender.createEncodedStreams();
@@ -124,7 +128,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     const onMessage = async (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type !== "video_signal") return;
-
+      
       // единая точка обработки сигналов
       const pc = pcRef.current;
 
@@ -149,6 +153,10 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           localVideoRef.current.srcObject = stream;
           stream.getTracks().forEach((t) => {
             const sender = pc.addTrack(t, stream);
+            if (typeof sender.createEncodedStreams !== "function") {
+              console.warn("EncodedStreams не поддерживается в этом браузере");
+              return;
+            }
             setupSenderTransform(sender);
           });
         } catch (error) {
