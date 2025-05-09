@@ -162,7 +162,6 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // принимаем remote stream
         pc.ontrack = (e) => {
-          setupReceiverTransform(e.receiver);
           const [rs] = e.streams;
           setRemoteStream(rs);
           remoteVideoRef.current.srcObject = rs;
