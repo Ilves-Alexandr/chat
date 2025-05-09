@@ -169,7 +169,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // ставим оффер
         await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
-
+        pc.getReceivers().forEach(setupReceiverTransform);
         // вываливаем накопленные ICE
         for (const c of incomingIceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
@@ -195,6 +195,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       // ======== ANSWER ========
       if (msg.signalType === "video_answer" && pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        pc.getReceivers().forEach(setupReceiverTransform);
         setCallStatus("in_call");
         return;
       }
