@@ -1,49 +1,64 @@
 .chat-container {
-  margin: 0 auto;
-  max-width: 600px;
-  text-align: center;
+  height: 95vh;
+  position: relative;
+}
+
+.top_group {
 display: flex;
-flex-direction: column;
-color: blue;
-background: #eee;
-/* height: 100vh; */
+justify-content: space-between;
 }
-.clear-btn {
 
-}
-.recovery-btn {
-
-}
 .chat-type {
-
-}
-.recipient-input{
-
-}
-.messages{
-
-}
-.message {
-
-}
-.input-area {
-
-}
-.text-input {
-
-}
-.file-input {
-
-}
-.input {
-  width: 70%;
-}
-.btn {
-
-width: 30%;
-}
-.top_btn-group {
+  margin:  2vw 0;
   display: flex;
-  flex-direction: row;
-justify-content: right;  
+  justify-content: space-around;
+}
+
+.bottom_group {
+  position: absolute;
+  content: " ";
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.input-area {
+  display: flex;
+  justify-content: space-between;
+}
+
+.text_input {}
+.file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+.file_label {
+    outline: none;
+    border: none;
+    border-radius: 5px;
+    padding: 1vh 2vw;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .2s, color .2s;
+}
+.file_label:hover {
+  background-color: #222;
+  color: #fff;
+}
+.file-name {
+  font-style: italic;
+  color: #666;
+  user-select: none;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text_btn,
+.file_btn {
+  width: 25vw;
 }

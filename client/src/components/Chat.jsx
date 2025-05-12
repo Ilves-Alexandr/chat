@@ -39,6 +39,7 @@ const Chat = () => {
   const privateKeyRef = useRef(null);
   const wsRef = useRef(null);
   const passphrase = "testpass";
+
   // Функция для подтверждения введённого идентификатора собеседника
   const confirmRecipient = () => {
     if (!recipientId.trim()) {
@@ -448,8 +449,7 @@ const Chat = () => {
   };
   return (
     <div className="chat-container">
-      <h1>Anonymous Chat</h1>
-      <div className="top_btn-group">
+      <div className="top_group">
         <button onClick={clearUserData} className="clear-btn btn">
           Очистить данные аккаунта
         </button>
@@ -458,20 +458,23 @@ const Chat = () => {
           Восстановить аккаунт
         </button>
       </div>
+      <h1>Чат</h1>
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
         <label>
           <input
+            className="radio"
             type="radio"
             name="chatType"
             value="group"
             checked={chatType === "group"}
             onChange={() => setChatType("group")}
           />
-          Групповой чат
+          Мировой чат
         </label>
         <label>
           <input
+            className="radio"
             type="radio"
             name="chatType"
             value="private"
@@ -481,78 +484,86 @@ const Chat = () => {
           Приватный чат
         </label>
       </div>
-      {/* Если выбран приватный чат, поле для ввода ID собеседника */}
-      {chatType === "private" && (
-        <div>
-          <button
-            className="btn"
-            onClick={() => setShowRecipientInput((prev) => !prev)}
-          >
-            {showRecipientInput ? "Скрыть поле ввода" : "Ввести ID собеседника"}
-          </button>
-          {showRecipientInput && (
-            <div>
-              <input
-                type="text"
-                value={recipientId}
-                onChange={(e) => setRecipientId(e.target.value)}
-                placeholder="Введите ID собеседника"
-                className="recipient-input input"
-              />
-              <button className="btn" onClick={confirmRecipient}>
-                Подтвердить получателя
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="messages">
-        {messages.map((msg, index) => (
-          <p key={index} className="message">
-            <strong>{msg.userId}:</strong> {msg.text}
-            {msg.fileUrl && (
-              <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-                Скачать файл
-              </a>
+      <div className="bottom_group">
+        {/* Если выбран приватный чат, поле для ввода ID собеседника */}
+        {chatType === "private" && (
+          <div>
+            <button
+              className="btn"
+              onClick={() => setShowRecipientInput((prev) => !prev)}
+            >
+              {showRecipientInput
+                ? "Скрыть поле ввода"
+                : "Ввести ID собеседника"}
+            </button>
+            {showRecipientInput && (
+              <div>
+                <input
+                  type="text"
+                  value={recipientId}
+                  onChange={(e) => setRecipientId(e.target.value)}
+                  placeholder="Введите ID собеседника"
+                  className="recipient-input input"
+                />
+                <button className="btn" onClick={confirmRecipient}>
+                  Подтвердить получателя
+                </button>
+              </div>
             )}
-          </p>
-        ))}
+          </div>
+        )}
+        {chatType === "private" && (
+          <VideoChat
+            ws={wsRef.current}
+            clientId={localStorage.getItem("clientId")}
+            recipientId={confirmedRecipientId}
+          />
+        )}
+        <div className="messages">
+          {messages.map((msg, index) => (
+            <p key={index} className="message">
+              <strong>{msg.userId}:</strong> {msg.text}
+              {msg.fileUrl && (
+                <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
+                  Скачать файл
+                </a>
+              )}
+            </p>
+          ))}
+        </div>
+        <div className="input-area">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Введите сообщение..."
+            className="text_input input"
+          />
+          <button
+            className="text_btn btn"
+            onClick={() => sendMessage(input)}
+            disabled={chatType === "private" && !confirmedRecipientId}
+          >
+            Отправить
+          </button>
+        </div>
+        <div className="input-area">
+          {/* Если нужно отправлять файлы */}
+          <input
+            type="file"
+            id="fileInput"
+            onChange={handleFileChange}
+            className="file-input input"
+          />
+          <label for="fileInput" className="file_label">Выбрать файл</label>
+          <span class="file-name">Файл не выбран</span>
+          <button className="file_btn btn" onClick={sendFile} disabled={!file}>
+            Отправить файл
+          </button>
+        </div>
+
+        <ToastContainer position="bottom-right" autoClose={3000} />
       </div>
-      <div className="input-area">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Введите сообщение..."
-          className="text-input input"
-        />
-        <button
-          className="btn"
-          onClick={() => sendMessage(input)}
-          disabled={chatType === "private" && !confirmedRecipientId}
-        >
-          Отправить
-        </button>
-      </div>
-      <div className="input-area">
-        {/* Если нужно отправлять файлы */}
-        <input
-          type="file"
-          onChange={handleFileChange}
-          className="file-input input"
-        />
-        <button className="btn" onClick={sendFile} disabled={!file}>
-          Отправить файл
-        </button>
-      </div>
-      {chatType === "private" && (
-        <VideoChat
-          ws={wsRef.current}
-          clientId={localStorage.getItem("clientId")}
-          recipientId={confirmedRecipientId}
-        />
-      )}
-      <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
 };
