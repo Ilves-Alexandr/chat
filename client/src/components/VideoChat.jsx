@@ -1,4 +1,3 @@
-// VideoChat.jsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -6,10 +5,11 @@ import "./VideoChat.css";
 
 // AES-GCM helpers
 async function generateKey() {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
 }
 function getIv() {
   return crypto.getRandomValues(new Uint8Array(12));
@@ -30,23 +30,24 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const pcRef = useRef();
-  const keyRef = useRef(); // AES-GCM key
-  const iceBuffer = useRef([]);
+  const keyRef = useRef();       // общий AES-GCM ключ
+  const iceBuffer = useRef([]); // буфер ICE до remoteDescription
 
-  // 1) Генерируем общий медиа-ключ
+  // 1) Генерируем общий медиа-ключ при монтировании
   useEffect(() => {
-    generateKey().then((k) => (keyRef.current = k));
+    generateKey().then((k) => {
+      keyRef.current = k;
+    });
   }, []);
 
-  // 2) Функция для вставки шифрования в sender
+  // 2) Шифрование для отправителя
   function setupSenderTransform(sender) {
     if (!sender.createEncodedStreams || sender.track.kind !== "video") return;
     const { readable, writable } = sender.createEncodedStreams();
-    const iv = getIv(); // можно генерировать на каждый фрейм, но для примера один IV
     const transformer = new TransformStream({
       async transform(chunk, controller) {
+        const iv = getIv();
         const encrypted = await encrypt(chunk.data, keyRef.current, iv);
-        // префиксируем iv к каждому кадру
         const out = new Uint8Array(iv.byteLength + encrypted.byteLength);
         out.set(iv, 0);
         out.set(new Uint8Array(encrypted), iv.byteLength);
@@ -57,7 +58,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     readable.pipeThrough(transformer).pipeTo(writable);
   }
 
-  // 3) Функция для вставки дешифровки в receiver
+  // 3) Дешифровка для приёмника
   function setupReceiverTransform(receiver) {
     if (!receiver.createEncodedStreams || receiver.track.kind !== "video")
       return;
@@ -75,32 +76,35 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     readable.pipeThrough(transformer).pipeTo(writable);
   }
 
-  // 4) Обработчик сигналов
+  // 4) Обработчик WebSocket-сигналинга
   useEffect(() => {
     if (!ws) return;
+
     const onMsg = async (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type !== "video_signal") return;
+
       const pc = pcRef.current;
 
-      // === OFFER ===
+      // ======== OFFER ========
       if (msg.signalType === "video_offer") {
         const pc = new RTCPeerConnection(iceConfig);
         pcRef.current = pc;
         iceBuffer.current = [];
 
-        // локальное видео/аудио
+        // захват локального потока
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
         });
         localVideoRef.current.srcObject = stream;
+        // добавляем треки + шифруем видео-трек
         stream.getTracks().forEach((t) => {
           const sender = pc.addTrack(t, stream);
           setupSenderTransform(sender);
         });
 
-        // ICE candidate
+        // ICE кандидаты
         pc.onicecandidate = (ev) => {
           if (ev.candidate) {
             ws.send(
@@ -115,8 +119,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           }
         };
 
-        // буферизация incoming ICE до установки remoteDesc
-        document.addEventListener("videoSignal", async (ev) => {
+        // буферизация приходящих ICE до установки remoteDesc
+        const iceHandler = async (ev) => {
           const d = ev.detail;
           if (d.signalType === "ice_candidate") {
             if (pc.remoteDescription) {
@@ -125,24 +129,26 @@ export default function VideoChat({ ws, clientId, recipientId }) {
               iceBuffer.current.push(d.candidate);
             }
           }
-        });
+        };
+        document.addEventListener("videoSignal", iceHandler);
 
-        // Вставляем дешифровку сразу при получении трека
+        // ontrack: сначала вставляем десшифровку, затем привязываем видео
         pc.ontrack = (ev) => {
+          setupReceiverTransform(ev.receiver);
           const [remote] = ev.streams;
           remoteVideoRef.current.srcObject = remote;
           setCallStatus("in_call");
         };
 
-        // устанавливаем offer и сбрасываем ICE
+        // устанавливаем OFFER и сбрасываем ICE
         await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
-        pc.getReceivers().forEach(setupReceiverTransform);
         for (let c of iceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
         }
         iceBuffer.current = [];
+        document.removeEventListener("videoSignal", iceHandler);
 
-        // отправляем answer
+        // создаём ANSWER и отправляем
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         ws.send(
@@ -157,21 +163,22 @@ export default function VideoChat({ ws, clientId, recipientId }) {
         return;
       }
 
-      // === ANSWER ===
+      // ======== ANSWER ========
       if (msg.signalType === "video_answer" && pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
-        pc.getReceivers().forEach(setupReceiverTransform);
+        // декодируем входящие приёмы по-прежнему в ontrack
         setCallStatus("in_call");
         return;
       }
 
-      // === ICE ===
+      // ======== ICE ========
       if (msg.signalType === "ice_candidate" && pc) {
         if (pc.remoteDescription) {
           await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
         } else {
           iceBuffer.current.push(msg.candidate);
         }
+        return;
       }
     };
 
@@ -185,7 +192,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     pcRef.current = pc;
     iceBuffer.current = [];
 
-    // локальное
+    // захват локального потока
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -196,14 +203,15 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       setupSenderTransform(sender);
     });
 
-    // принимает удалённые треки
+    // ontrack для приёма
     pc.ontrack = (ev) => {
+      setupReceiverTransform(ev.receiver);
       const [remote] = ev.streams;
       remoteVideoRef.current.srcObject = remote;
       setCallStatus("in_call");
     };
 
-    // ICE
+    // ICE кандидаты
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
         ws.send(
@@ -218,7 +226,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       }
     };
 
-    // offer → send
+    // создаём OFFER и отправляем
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(
