@@ -6,11 +6,10 @@ import "./VideoChat.css";
 
 // AES-GCM helpers
 async function generateKey() {
-  return crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt", "decrypt"]
-  );
+  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
 }
 function getIv() {
   return crypto.getRandomValues(new Uint8Array(12));
@@ -31,7 +30,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const pcRef = useRef();
-  const keyRef = useRef();             // AES-GCM key
+  const keyRef = useRef(); // AES-GCM key
   const iceBuffer = useRef([]);
 
   // 1) Генерируем общий медиа-ключ
@@ -60,7 +59,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
   // 3) Функция для вставки дешифровки в receiver
   function setupReceiverTransform(receiver) {
-    if (!receiver.createEncodedStreams || receiver.track.kind !== "video") return;
+    if (!receiver.createEncodedStreams || receiver.track.kind !== "video")
+      return;
     const { readable, writable } = receiver.createEncodedStreams();
     const transformer = new TransformStream({
       async transform(chunk, controller) {
@@ -129,7 +129,6 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // Вставляем дешифровку сразу при получении трека
         pc.ontrack = (ev) => {
-          setupReceiverTransform(ev.receiver);
           const [remote] = ev.streams;
           remoteVideoRef.current.srcObject = remote;
           setCallStatus("in_call");
@@ -137,6 +136,9 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // устанавливаем offer и сбрасываем ICE
         await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+        pc.getReceivers().forEach((receiver) => {
+          setupReceiverTransform(receiver);
+        });
         for (let c of iceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
         }
@@ -160,6 +162,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       // === ANSWER ===
       if (msg.signalType === "video_answer" && pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        pc.getReceivers().forEach(setupReceiverTransform);
+        setCallStatus("in_call");
         return;
       }
 
@@ -196,7 +200,6 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
     // принимает удалённые треки
     pc.ontrack = (ev) => {
-      setupReceiverTransform(ev.receiver);
       const [remote] = ev.streams;
       remoteVideoRef.current.srcObject = remote;
       setCallStatus("in_call");
