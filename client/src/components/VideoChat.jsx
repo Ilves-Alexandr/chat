@@ -157,7 +157,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
               console.warn("EncodedStreams не поддерживается в этом браузере");
               return;
             }
-            setupSenderTransform(sender);
+            // setupSenderTransform(sender);
           });
         } catch (error) {
           console.error(`mediaDevices.getUserMedia_error${error}`);
@@ -199,7 +199,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           console.log("💥 ontrack fired!", e);
           console.log("  track kind:", e.track.kind);
           console.log("  streams:", e.streams);
-          setupReceiverTransform(e.receiver);
+          // setupReceiverTransform(e.receiver);
           const [rs] = e.streams;
           console.log("  remoteStream tracks:", rs.getTracks());
           setRemoteStream(rs);
@@ -297,7 +297,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       localVideoRef.current.srcObject = stream;
       stream.getTracks().forEach((t) => {
         const s = pc.addTrack(t, stream);
-        setupSenderTransform(s);
+        // setupSenderTransform(s);
       });
     } catch (error) {
       console.error(`mediaDevices.getUserMedia:${error}`);
@@ -308,7 +308,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       console.log("💥 ontrack fired!", e);
       console.log("  track kind:", e.track.kind);
       console.log("  streams:", e.streams);
-      setupReceiverTransform(e.receiver);
+      // setupReceiverTransform(e.receiver);
       const [rs] = e.streams;
       console.log("  remoteStream tracks:", rs.getTracks());
       setRemoteStream(rs);
