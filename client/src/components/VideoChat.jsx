@@ -197,11 +197,11 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       <div className="video-container">
         <div>
           <h3>Ваше видео</h3>
-          <video ref={localVideoRef} autoPlay muted playsInline />
+          <video ref={localVideoRef} autoPlay playsInline />
         </div>
         <div>
           <h3>Видео собеседника</h3>
-          <video ref={remoteVideoRef} autoPlay playsInline muted />
+          <video ref={remoteVideoRef} autoPlay playsInline />
         </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
