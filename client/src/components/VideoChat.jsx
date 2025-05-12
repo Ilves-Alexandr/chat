@@ -204,6 +204,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           console.log("  remoteStream tracks:", rs.getTracks());
           setRemoteStream(rs);
           remoteVideoRef.current.srcObject = rs;
+          remoteVideoRef.current.play().catch(err => console.warn("remote play failed:", err));
         };
 
         // ставим оффер
@@ -312,6 +313,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       console.log("  remoteStream tracks:", rs.getTracks());
       setRemoteStream(rs);
       remoteVideoRef.current.srcObject = rs;
+      remoteVideoRef.current.play().catch(err => console.warn("remote play failed:", err));
     };
 
     // ICE candidates
@@ -372,7 +374,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
         </div>
         <div>
           <h3>Видео собеседника</h3>
-          <video ref={remoteVideoRef} autoPlay playsInline />
+          <video ref={remoteVideoRef} autoPlay muted playsInline />
         </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
