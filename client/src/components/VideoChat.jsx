@@ -248,7 +248,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       if (msg.signalType === "video_answer" && pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
-          pc.getReceivers().forEach(setupReceiverTransform);
+          // pc.getReceivers().forEach(setupReceiverTransform);
         } catch (error) {
           console.error(`ANSWER:${error}`);
         }
@@ -260,7 +260,6 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       if (msg.signalType === "ice_candidate" && pc) {
         if (pc.remoteDescription && pc.remoteDescription.type) {
           try {
-            console.log("Добавляем ICE-кандидат:", msg.candidate);
             await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
           } catch (error) {
             console.error(`ICE:${error}`);
