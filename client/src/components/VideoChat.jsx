@@ -136,9 +136,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // устанавливаем offer и сбрасываем ICE
         await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
-        pc.getReceivers().forEach((receiver) => {
-          setupReceiverTransform(receiver);
-        });
+        pc.getReceivers().forEach(setupReceiverTransform);
         for (let c of iceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
         }
