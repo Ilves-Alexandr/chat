@@ -128,7 +128,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     const onMessage = async (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type !== "video_signal") return;
-      
+
       // единая точка обработки сигналов
       const pc = pcRef.current;
 
@@ -196,7 +196,12 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
         // принимаем remote stream
         pc.ontrack = (e) => {
+          console.log("💥 ontrack fired!", e);
+          console.log("  track kind:", e.track.kind);
+          console.log("  streams:", e.streams);
+          setupReceiverTransform(e.receiver);
           const [rs] = e.streams;
+          console.log("  remoteStream tracks:", rs.getTracks());
           setRemoteStream(rs);
           remoteVideoRef.current.srcObject = rs;
         };
@@ -255,6 +260,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       if (msg.signalType === "ice_candidate" && pc) {
         if (pc.remoteDescription && pc.remoteDescription.type) {
           try {
+            console.log("Добавляем ICE-кандидат:", msg.candidate);
             await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
           } catch (error) {
             console.error(`ICE:${error}`);
@@ -299,8 +305,12 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
     // remote ontrack
     pc.ontrack = (e) => {
+      console.log("💥 ontrack fired!", e);
+      console.log("  track kind:", e.track.kind);
+      console.log("  streams:", e.streams);
       setupReceiverTransform(e.receiver);
       const [rs] = e.streams;
+      console.log("  remoteStream tracks:", rs.getTracks());
       setRemoteStream(rs);
       remoteVideoRef.current.srcObject = rs;
     };
