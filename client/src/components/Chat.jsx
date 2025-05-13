@@ -23,9 +23,22 @@ import "react-toastify/dist/ReactToastify.css";
 import "./Chat.css";
 
 const Chat = () => {
+   // --- ТЕМА ---
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    document.body.classList.toggle("dark-mode", darkMode);
+  }, [darkMode]);
+
+  // --- ВЫБОР ФАЙЛА ---
+  const [fileName, setFileName] = useState("Файл не выбран");
+  const [file, setFile] = useState(null);
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    setFile(f || null);
+    setFileName(f ? f.name : "Файл не выбран");
+  };
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [file, setFile] = useState(null);
   const [chatType, setChatType] = useState("group"); // 'group' или 'private'
   const [recipientId, setRecipientId] = useState(""); // ID собеседника для приватного чата
   const [confirmedRecipientId, setConfirmedRecipientId] = useState("");
@@ -442,11 +455,6 @@ const Chat = () => {
       toast.error("Ошибка отправки файла");
     }
   };
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-    }
-  };
   return (
     <div className="chat-container">
       <div className="top_group">
@@ -458,6 +466,16 @@ const Chat = () => {
           Восстановить аккаунт
         </button>
       </div>
+      {/* Переключатель темы */}
+      <label htmlFor="darkToggle" className="theme-toggle">
+        <input
+          id="darkToggle"
+          type="checkbox"
+          checked={darkMode}
+          onChange={e => setDarkMode(e.target.checked)}
+        />
+        Тёмная тема
+      </label>
       <h1>Чат</h1>
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
@@ -555,8 +573,8 @@ const Chat = () => {
             onChange={handleFileChange}
             className="file-input input"
           />
-          <label for="fileInput" className="file_label">Выбрать файл</label>
-          <span class="file-name">Файл не выбран</span>
+          <label htmlFor="fileInput" className="file_label">Выбрать файл</label>
+          <span class="file-name">{fileName}</span>
           <button className="file_btn btn" onClick={sendFile} disabled={!file}>
             Отправить файл
           </button>
