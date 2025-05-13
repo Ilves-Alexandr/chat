@@ -1,6 +1,7 @@
 import Chat from "./components/Chat";
 import "./App.css";
 import { useState, useEffect } from "react";
+import {sendFile, file} from './components/Chat'
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -25,15 +26,20 @@ function App() {
         />
         Тёмная тема
       </label>
-      <div className="file-upload">
-        <input
-          id="fileInput"
-          type="file"
-          onChange={handleFileChange}
-        />
-        <label htmlFor="fileInput">Выбрать файл</label>
-        <span className="file-name">{fileName}</span>
-      </div>
+      <div className="input-area">
+          {/* Если нужно отправлять файлы */}
+          <input
+            type="file"
+            id="fileInput"
+            onChange={handleFileChange}
+            className="file-input input"
+          />
+          <label for="fileInput" className="file_label">Выбрать файл</label>
+          <span class="file-name">Файл не выбран</span>
+          <button className="file_btn btn" onClick={sendFile} disabled={!file}>
+            Отправить файл
+          </button>
+        </div>
       <Chat />
     </div>
   );
