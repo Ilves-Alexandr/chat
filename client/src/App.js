@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
+  const [fileName, setFileName] = useState("Файл не выбран");
+
   useEffect(() => {
     document.body.classList.toggle("dark-mode", darkMode);
   }, [darkMode]);
-  const input = document.getElementById("fileInput");
-  const fileNameSpan = document.querySelector(".file-name");
-  input.addEventListener("change", () => {
-    const file = input.files[0];
-    fileNameSpan.textContent = file ? file.name : "Файл не выбран";
-  });
+
+ const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setFileName(file ? file.name : "Файл не выбран");
+  };
   return (
     <div className="App">
       <label htmlFor="darkToggle">
@@ -24,6 +25,15 @@ function App() {
         />
         Тёмная тема
       </label>
+      <div className="file-upload">
+        <input
+          id="fileInput"
+          type="file"
+          onChange={handleFileChange}
+        />
+        <label htmlFor="fileInput">Выбрать файл</label>
+        <span className="file-name">{fileName}</span>
+      </div>
       <Chat />
     </div>
   );
