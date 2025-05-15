@@ -12,14 +12,21 @@ body {
 }
 
 input, button{
+    height: 5vh;
     outline: none;
     border: 1px solid #222;
     border-radius: 5px;
+    width: 100%;
     padding: 1vh 2vw;
     font-weight: 500;
     cursor: pointer;
     background: transparent;
     transition: background .2s, color .2s;
+}
+
+label {
+    background-color: transparent;
+    cursor: pointer;
 }
 
 button:hover {

@@ -1,4 +1,8 @@
 .video-chat-container {
+display: grid;
+grid-template-columns: 1fr;
+/* align-items: center; */
+text-align: center;
 
 }
 
@@ -7,13 +11,17 @@
 }
 
 .video-container {
-
+display: grid;
+grid-template-columns: auto auto;
 }
 
-.local-video {
-
-}
-
+.local-video,
 .remote-video {
+    /* width: 100vw; */
+}
 
+
+body.dark-mode .video-chat-container {
+  background: #222;
+  color: #eee;
 }

@@ -1,23 +1,17 @@
 {
   "files": {
-    "main.css": "/static/css/main.39b45407.css",
-    "main.js": "/static/js/main.f3675c48.js",
+    "main.css": "/static/css/main.ab5ff8fa.css",
+    "main.js": "/static/js/main.f6c3d1f5.js",
     "index.html": "/index.html",
-    "static/media/phone-x-mark.svg": "/static/media/phone-x-mark.79f58aa46aa08ea09c1458992d38c9a0.svg",
-    "static/media/phone.svg": "/static/media/phone.3d8f609de57f77e6d67d639a5a6ccc32.svg",
-    "static/media/video-camera-slash.svg": "/static/media/video-camera-slash.f80b28413e323aba9c411d6f88aa8275.svg",
-    "static/media/speaker-wave.svg": "/static/media/speaker-wave.c46f750af6fc45ab544b4182c96a9b01.svg",
-    "static/media/speaker-x-mark.svg": "/static/media/speaker-x-mark.d7b1ee282853e28154bf6fe7542af5f2.svg",
-    "static/media/video-camera.svg": "/static/media/video-camera.e0d9285f67eaa251c38e553cdc9a3323.svg",
     "static/media/sun.svg": "/static/media/sun.f69307a177979986c9ea93899fcac15a.svg",
     "static/media/moon.svg": "/static/media/moon.6e1709f9b3665283da4209dc8f5eecda.svg",
     "static/media/paper-clip.svg": "/static/media/paper-clip.42b88eb07a5586ee1262aa624cb741da.svg",
     "static/media/paper-airplane.svg": "/static/media/paper-airplane.f6c14ab05f12b04dbaf789799026cfb5.svg",
-    "main.39b45407.css.map": "/static/css/main.39b45407.css.map",
-    "main.f3675c48.js.map": "/static/js/main.f3675c48.js.map"
+    "main.ab5ff8fa.css.map": "/static/css/main.ab5ff8fa.css.map",
+    "main.f6c3d1f5.js.map": "/static/js/main.f6c3d1f5.js.map"
   },
   "entrypoints": [
-    "static/css/main.39b45407.css",
-    "static/js/main.f3675c48.js"
+    "static/css/main.ab5ff8fa.css",
+    "static/js/main.f6c3d1f5.js"
   ]
 }

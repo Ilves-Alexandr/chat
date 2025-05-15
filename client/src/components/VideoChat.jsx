@@ -76,9 +76,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
         };
 
         // ставим удалённый оффер
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(msg.offer)
-        );
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
         // вываливаем накопленные ICE
         for (const c of incomingIceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
@@ -103,9 +101,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
       // ANSWER
       if (msg.signalType === "video_answer" && pc) {
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(msg.answer)
-        );
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
         setCallStatus("in_call");
         return;
       }
@@ -188,22 +184,25 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
   return (
     <div className="video-chat-container">
-      <h2>Video Chat</h2>
-      {callStatus === "idle" ? (
-        <button onClick={startCall}>Начать звонок</button>
-      ) : (
-        <button onClick={endCall}>Завершить звонок</button>
-      )}
       <div className="video-container">
         <div>
           <h3>Ваше видео</h3>
-          <video ref={localVideoRef} autoPlay playsInline />
+          <video className="local_video" ref={localVideoRef} autoPlay playsInline />
         </div>
         <div>
           <h3>Видео собеседника</h3>
-          <video ref={remoteVideoRef} autoPlay playsInline />
+          <video className="remote_video" ref={remoteVideoRef} autoPlay playsInline />
         </div>
       </div>
+      {callStatus === "idle" ? (
+        <button className="video_btn btn" onClick={startCall}>
+          Начать звонок
+        </button>
+      ) : (
+        <button className="video_btn btn" onClick={endCall}>
+          Завершить звонок
+        </button>
+      )}
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );

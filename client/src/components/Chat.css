@@ -20,6 +20,10 @@
   justify-content: space-between;
 }
 
+.darkToggle {
+  display: none;
+}
+
 /* Заголовок */
 .chat-container > h1 {
   grid-row: 2;
@@ -32,19 +36,74 @@
 .chat-type {
   grid-row: 3;
   display: grid;
-  grid-template-columns: auto auto;
-  grid-template-rows: auto auto;
+  grid-template-columns: 1fr;
   gap: 1rem;
   justify-content: center;
+  text-align: center;
+}
+.label-text{
+}
+
+/* Скрываем настоящий чекбокс */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Корпус переключателя */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+  grid-column: 1 / 3;
+  margin: 0 auto;
+}
+
+/* Сам ползунок-фон */
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0;
+  right: 0; bottom: 0;
+  background-color: #eee;
+  border-radius: 26px;
+  transition: background-color 0.2s;
+}
+
+/* Круглая «ручка» */
+.switch .slider::before {
+  content: " ";
+  position: absolute;
+  height: 22px; width: 22px;
+  left: 2px; bottom: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+/* При checked — фон другой и ручка сдвинута вправо */
+.switch input:checked + .slider {
+  background-color: #4caf50;
+}
+.switch input:checked + .slider::before {
+  transform: translateX(26px);
+}
+
+/* Если нужно, можно добавить эффект при ховере */
+.switch:hover .slider {
+  background-color: #bbb;
+}
+.switch input:checked:hover + .slider {
+  background-color: #45a049;
 }
 .recipient {
   grid-column: 1 / 3;
-  grid-row: 2/3; 
-
 }
 
 .recipient_btn {
-  min-width: 100%;
+width: 20vw;
 }
 
 /* Область сообщений: прокручиваемая */
@@ -58,24 +117,64 @@
   background: #fff;
   border-radius: 4px;
   justify-content: center;
+  border-radius: 10px;
+  scrollbar-width: bold;  
+  scrollbar-color: #eee #222; 
 }
 
-.video {
+/* .video {
 
-}
+} */
 .messages {
 width: 5vw;
 height: 5vh;
 }
 /* Панель ввода текста */
 .bottom_group {
+  position: relative;
   grid-row: 5;
-  display: grid;
-  grid-template-columns: auto;
-  gap: 0.5rem;
-  background: red;
+  display: flex;
+  /* justify-content: center; */
+  /* grid-template-columns: auto auto; */
+  /* grid-template-rows: auto; */
+  /* align-items: center; */
+  /* gap: 0.5rem; */
 }
-.text_input {}
+
+
+/* .bottom_group-item {
+}
+
+.bottom_group-item:nth-child(1) {
+} */
+
+.bottom_group-item:nth-child(2) {
+ display: flex;
+ flex-direction: row;
+ position: absolute;
+ content: " ";
+ right: 0;
+ bottom: 0;
+ place-items: center;
+}
+ .text_input {
+width: 93vw;
+}
+ .file_container {
+  position: absolute;
+  content: " ";
+  width: 3vw;
+  bottom: 0;
+  right: 5vw;
+ }
+ 
+.file_label {
+  background-color: transparent;
+}
+
+.text_btn-container {
+  width: 4vw;
+}
 
 .file-input {
   /* Скрываем собственный инпут, если используем кастомный label */
@@ -89,14 +188,49 @@ height: 5vh;
   opacity: 0;
 }
 
+.moon_icon {
+width: 3vh;
+fill: transparent;
+stroke: #222;
+text-align: center;
+align-items: center;
+}
+
+.sun_icon {
+width: 3vh;
+fill: transparent;
+stroke: #fff;
+text-align: center;
+align-items: center;
+}
+
+.paper-air-plane_icon {
+width: 3vh;
+fill: transparent;
+stroke: #222;
+text-align: center;
+align-items: center;
+}
+
+.paper-clip_icon {
+width: 3vh;
+fill: transparent;
+stroke: #222;
+text-align: center;
+align-items: center;
+}
+
 /* Пример стилевого переключения темы */
 body.dark-mode {
   background: #222;
   color: #eee;
 }
-
+body.dark-mode .view_data {
+  background: #222;
+  color: #eee;  
+}
 body.dark-mode .messages {
-  background: #333;
+  /* background: #333; */
 }
 
 body.dark-mode .text_input,
@@ -105,27 +239,20 @@ body.dark-mode .recipient-input {
   color: #eee;
   border-color: #666;
 }
+/* body.dark-mode .file_label, */
 
-body.dark-mode .text_btn,
-body.dark-mode .file_label,
-body.dark-mode .file_btn {
+body.dark-mode .btn {
   background: #555;
+  color: #eee;
+  transition: background .2s, color .2s;
 }
 
-.moon_icon {
-width: 3vh;
-fill: transparent;
-stroke: #222;
+body.dark-mode .btn:hover {
+  background: #eee;
+  color: #555;
 }
 
-.paper-air-plane_icon {
-width: 3vh;
-fill: transparent;
-stroke: #222;
-}
-
-.paper-clip_icon {
-width: 3vh;
-fill: transparent;
-stroke: #222;
+body.dark-mode .paper-air-plane_icon,
+body.dark-mode .paper-clip_icon {
+stroke: #eee;
 }

@@ -2,13 +2,13 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ReactComponent as MoonIcon } from "../assets/icons/moon.svg";
 import { ReactComponent as PaperAirplaneIcon } from "../assets/icons/paper-airplane.svg";
 import { ReactComponent as PaperClipIcon } from "../assets/icons/paper-clip.svg";
-import { ReactComponent as PhoneXMarkIcon } from "../assets/icons/phone-x-mark.svg";
-import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
-import { ReactComponent as SpeakerWaveIcon } from "../assets/icons/speaker-wave.svg";
-import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-mark.svg";
+// import { ReactComponent as PhoneXMarkIcon } from "../assets/icons/phone-x-mark.svg";
+// import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
+// import { ReactComponent as SpeakerWaveIcon } from "../assets/icons/speaker-wave.svg";
+// import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-mark.svg";
 import { ReactComponent as SunIcon } from "../assets/icons/sun.svg";
-import { ReactComponent as VideoCameraSlashIcon } from "../assets/icons/video-camera-slash.svg";
-import { ReactComponent as VideoCameraIcon } from "../assets/icons/video-camera.svg";
+// import { ReactComponent as VideoCameraSlashIcon } from "../assets/icons/video-camera-slash.svg";
+// import { ReactComponent as VideoCameraIcon } from "../assets/icons/video-camera.svg";
 import * as openpgp from "openpgp";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -481,12 +481,14 @@ const Chat = () => {
         {/* Переключатель темы */}
         <label htmlFor="darkToggle" className="theme-toggle">
           <input
+            className="darkToggle"
             id="darkToggle"
             type="checkbox"
             checked={darkMode}
             onChange={(e) => setDarkMode(e.target.checked)}
           />
-          <MoonIcon className="moon_icon" />
+          {!darkMode && <MoonIcon className="moon_icon" />}
+          {darkMode && <SunIcon className="sun_icon" />}
         </label>
         <div className="acc">
           <button onClick={clearUserData} className="clear-btn btn">
@@ -501,29 +503,22 @@ const Chat = () => {
       <h1>Чат</h1>
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
-        <label>
-          <input
-            className="radio"
-            type="radio"
-            name="chatType"
-            value="group"
-            checked={chatType === "group"}
-            onChange={() => setChatType("group")}
-          />
-          Мировой чат
-        </label>
-        <label>
-          <input
-            className="radio"
-            type="radio"
-            name="chatType"
-            value="private"
-            checked={chatType === "private"}
-            onChange={() => setChatType("private")}
-          />
-          Приватный чат
-        </label>
-
+        {chatType === "private" && (
+          <div className="label-text">Мировой чат</div>
+        )}
+        {chatType !== "private" && (
+          <div className="label-text">Приватный чат</div>
+        )}
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={chatType === "private"}
+              onChange={() =>
+                setChatType((prev) => (prev === "group" ? "private" : "group"))
+              }
+            />
+            <span className="slider"></span>
+          </label>
         {/* Если выбран приватный чат, поле для ввода ID собеседника */}
         {chatType === "private" && (
           <div className="recipient">
@@ -576,41 +571,48 @@ const Chat = () => {
         </div>
       </div>
       <div className="bottom_group">
-        <div className="input-area combined">
+        <div className="bottom_group-item">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Введите сообщение или прикрепите файл"
             className="text_input input"
+            id="text_input"
           />
-
-          {/* Привязанная к input type="file" иконка */}
-          <input
-            type="file"
-            id="fileInput"
-            onChange={handleFileChange}
-            className="file-input"
-          />
-          <label htmlFor="fileInput" className="file_label">
-            <PaperClipIcon className="paper-clip_icon" />
-          </label>
-
-          {/* Одна общая кнопка отправки */}
-          <button
-            className="text_btn btn"
-            onClick={handleSend}
-            disabled={
-              (chatType === "private" && !confirmedRecipientId) || // приватный без получателя
-              (!file && input.trim() === "") // нет ни текста, ни файла
-            }
-          >
-            <PaperAirplaneIcon className="paper-air-plane_icon" />
-          </button>
         </div>
-
-        <ToastContainer position="bottom-right" autoClose={3000} />
+        <div className="bottom_group-item">
+          {chatType === "private" && (
+            <div className="file_container">
+              {/* Привязанная к input type="file" иконка */}
+              <label htmlFor="fileInput" className="file_label">
+                <input
+                  type="file"
+                  id="fileInput"
+                  onChange={handleFileChange}
+                  className="file-input"
+                />
+                <PaperClipIcon className="paper-clip_icon" />
+              </label>
+            </div>
+          )}
+          <div className="text_btn-container">
+            {/* Одна общая кнопка отправки */}
+            <button
+              id="text_btn"
+              className="text_btn btn"
+              onClick={handleSend}
+              disabled={
+                (chatType === "private" && !confirmedRecipientId) || // приватный без получателя
+                (!file && input.trim() === "") // нет ни текста, ни файла
+              }
+            >
+              <PaperAirplaneIcon className="paper-air-plane_icon" />
+            </button>
+          </div>
+        </div>
       </div>
+      {/* <ToastContainer position="bottom-right" autoClose={3000} /> */}
     </div>
   );
 };
