@@ -4,35 +4,21 @@
     box-sizing: border-box;
 }
 
-.App {
-    position: relative;
-    margin: 0 auto;
-    max-width: 80vw;
-    min-height: 100vh;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    font: 1.2rem "Comic Sans MS", 'Comic Sans';
-}
 body {
+    font: 1.2rem "Comic Sans MS", 'Comic Sans';
     background: #fff;
     color: #222;
     transition: background .3s, color .3s;
 }
 
-body.dark-mode {
-    background: #222;
-    color: #fff;
-}
-
 input, button{
-    font: 1.2rem "Comic Sans MS", 'Comic Sans';
     outline: none;
-    border: none;
+    border: 1px solid #222;
     border-radius: 5px;
     padding: 1vh 2vw;
     font-weight: 500;
     cursor: pointer;
+    background: transparent;
     transition: background .2s, color .2s;
 }
 

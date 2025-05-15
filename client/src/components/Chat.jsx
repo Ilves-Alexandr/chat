@@ -1,4 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { ReactComponent as MoonIcon } from "../assets/icons/moon.svg";
+import { ReactComponent as PaperAirplaneIcon } from "../assets/icons/paper-airplane.svg";
+import { ReactComponent as PaperClipIcon } from "../assets/icons/paper-clip.svg";
+import { ReactComponent as PhoneXMarkIcon } from "../assets/icons/phone-x-mark.svg";
+import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
+import { ReactComponent as SpeakerWaveIcon } from "../assets/icons/speaker-wave.svg";
+import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-mark.svg";
+import { ReactComponent as SunIcon } from "../assets/icons/sun.svg";
+import { ReactComponent as VideoCameraSlashIcon } from "../assets/icons/video-camera-slash.svg";
+import { ReactComponent as VideoCameraIcon } from "../assets/icons/video-camera.svg";
 import * as openpgp from "openpgp";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -23,7 +33,7 @@ import "react-toastify/dist/ReactToastify.css";
 import "./Chat.css";
 
 const Chat = () => {
-   // --- ТЕМА ---
+  // --- ТЕМА ---
   const [darkMode, setDarkMode] = useState(false);
   useEffect(() => {
     document.body.classList.toggle("dark-mode", darkMode);
@@ -147,6 +157,16 @@ const Chat = () => {
     } catch (err) {
       console.error("Ошибка восстановления аккаунта:", err);
       toast.error("Ошибка восстановления аккаунта");
+    }
+  };
+  const handleSend = async () => {
+    // Сначала отправляем файл (если выбран)
+    if (file) {
+      await sendFile();
+    }
+    // Затем отправляем текст (если есть непустой ввод)
+    if (input.trim() !== "") {
+      await sendMessage(input);
     }
   };
   useEffect(() => {
@@ -458,24 +478,26 @@ const Chat = () => {
   return (
     <div className="chat-container">
       <div className="top_group">
-        <button onClick={clearUserData} className="clear-btn btn">
-          Очистить данные аккаунта
-        </button>
-        {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
-        <button onClick={recoverAccount} className="recovery-btn btn">
-          Восстановить аккаунт
-        </button>
+        {/* Переключатель темы */}
+        <label htmlFor="darkToggle" className="theme-toggle">
+          <input
+            id="darkToggle"
+            type="checkbox"
+            checked={darkMode}
+            onChange={(e) => setDarkMode(e.target.checked)}
+          />
+          <MoonIcon className="moon_icon" />
+        </label>
+        <div className="acc">
+          <button onClick={clearUserData} className="clear-btn btn">
+            Очистить данные аккаунта
+          </button>
+          {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
+          <button onClick={recoverAccount} className="recovery-btn btn">
+            Восстановить аккаунт
+          </button>
+        </div>
       </div>
-      {/* Переключатель темы */}
-      <label htmlFor="darkToggle" className="theme-toggle">
-        <input
-          id="darkToggle"
-          type="checkbox"
-          checked={darkMode}
-          onChange={e => setDarkMode(e.target.checked)}
-        />
-        Тёмная тема
-      </label>
       <h1>Чат</h1>
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
@@ -501,13 +523,12 @@ const Chat = () => {
           />
           Приватный чат
         </label>
-      </div>
-      <div className="bottom_group">
+
         {/* Если выбран приватный чат, поле для ввода ID собеседника */}
         {chatType === "private" && (
-          <div>
+          <div className="recipient">
             <button
-              className="btn"
+              className="recipient_btn btn"
               onClick={() => setShowRecipientInput((prev) => !prev)}
             >
               {showRecipientInput
@@ -530,53 +551,61 @@ const Chat = () => {
             )}
           </div>
         )}
-        {chatType === "private" && (
-          <VideoChat
-            ws={wsRef.current}
-            clientId={localStorage.getItem("clientId")}
-            recipientId={confirmedRecipientId}
-          />
-        )}
+      </div>
+      <div className="view_data">
+        <div className="video">
+          {chatType === "private" && (
+            <VideoChat
+              ws={wsRef.current}
+              clientId={localStorage.getItem("clientId")}
+              recipientId={confirmedRecipientId}
+            />
+          )}
+        </div>
         <div className="messages">
           {messages.map((msg, index) => (
             <p key={index} className="message">
               <strong>{msg.userId}:</strong> {msg.text}
-              {msg.fileUrl && (
+              {chatType === "private" && msg.fileUrl && (
                 <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-                  Скачать файл
+                  <PaperClipIcon className="paper-clip_icon" />
                 </a>
               )}
             </p>
           ))}
         </div>
-        <div className="input-area">
+      </div>
+      <div className="bottom_group">
+        <div className="input-area combined">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Введите сообщение..."
+            placeholder="Введите сообщение или прикрепите файл"
             className="text_input input"
           />
-          <button
-            className="text_btn btn"
-            onClick={() => sendMessage(input)}
-            disabled={chatType === "private" && !confirmedRecipientId}
-          >
-            Отправить
-          </button>
-        </div>
-        <div className="input-area">
-          {/* Если нужно отправлять файлы */}
+
+          {/* Привязанная к input type="file" иконка */}
           <input
             type="file"
             id="fileInput"
             onChange={handleFileChange}
-            className="file-input input"
+            className="file-input"
           />
-          <label htmlFor="fileInput" className="file_label">Выбрать файл</label>
-          <span class="file-name">{fileName}</span>
-          <button className="file_btn btn" onClick={sendFile} disabled={!file}>
-            Отправить файл
+          <label htmlFor="fileInput" className="file_label">
+            <PaperClipIcon className="paper-clip_icon" />
+          </label>
+
+          {/* Одна общая кнопка отправки */}
+          <button
+            className="text_btn btn"
+            onClick={handleSend}
+            disabled={
+              (chatType === "private" && !confirmedRecipientId) || // приватный без получателя
+              (!file && input.trim() === "") // нет ни текста, ни файла
+            }
+          >
+            <PaperAirplaneIcon className="paper-air-plane_icon" />
           </button>
         </div>
 
