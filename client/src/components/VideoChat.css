@@ -1,8 +1,13 @@
 .video-chat-container {
 display: grid;
 grid-template-columns: 1fr;
-/* align-items: center; */
 text-align: center;
+
+}
+
+.video-controls{
+  display: grid;
+  grid-template-columns: auto auto auto auto;
 
 }
 
@@ -15,9 +20,11 @@ display: grid;
 grid-template-columns: auto auto;
 }
 
-.local-video,
-.remote-video {
-    /* width: 100vw; */
+.local_video,
+.remote_video {
+    width: 45vw;
+    border: 1px solid #222;
+    margin-bottom: 5vh;
 }
 
 

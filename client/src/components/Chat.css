@@ -112,7 +112,8 @@ width: 20vw;
   display: grid;
   grid-template-columns: auto;
   grid-template-rows: auto auto;
-  overflow-y: auto;
+  overflow-y: hidden;
+  overflow-x: visible;
   padding: 1rem;
   background: #fff;
   border-radius: 4px;
@@ -126,8 +127,11 @@ width: 20vw;
 
 } */
 .messages {
-width: 5vw;
-height: 5vh;
+  /* background-color: #45a049; */
+  width: 90vw;
+  height: 5vh;
+  /* border: 2px solid #4caf50; */
+  /* border-radius: 5px; */
 }
 /* Панель ввода текста */
 .bottom_group {
@@ -174,6 +178,15 @@ width: 93vw;
 
 .text_btn-container {
   width: 4vw;
+}
+
+.text_btn {
+  display: flex;
+  justify-content: center;
+}
+
+.text_btn svg {
+min-width: 5vw
 }
 
 .file-input {
@@ -227,8 +240,11 @@ body.dark-mode {
 }
 body.dark-mode .view_data {
   background: #222;
-  color: #eee;  
+  color: #eee;
+  scrollbar-width: bold;  
+  scrollbar-color: #222 #eee;  
 }
+
 body.dark-mode .messages {
   /* background: #333; */
 }

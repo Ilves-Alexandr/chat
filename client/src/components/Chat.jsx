@@ -504,10 +504,10 @@ const Chat = () => {
       {/* Переключатель типа чата: групповый или приватный */}
       <div className="chat-type">
         {chatType === "private" && (
-          <div className="label-text">Мировой чат</div>
+          <div className="label-text">Приватный чат</div>
         )}
         {chatType !== "private" && (
-          <div className="label-text">Приватный чат</div>
+          <div className="label-text">Мировой чат</div>
         )}
           <label className="switch">
             <input

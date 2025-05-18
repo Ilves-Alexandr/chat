@@ -11,6 +11,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, in_call
+  const [remoteVolume, setRemoteVolume] = useState(1); // 0…1
+  const [micMuted, setMicMuted] = useState(false);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -182,16 +184,43 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     setCallStatus("idle");
   };
 
+   const changeRemoteVolume = (delta) => {
+    if (!remoteVideoRef.current) return;
+    let v = remoteVideoRef.current.volume + delta;
+    v = Math.min(1, Math.max(0, v));
+    remoteVideoRef.current.volume = v;
+    setRemoteVolume(v);
+  };
+
+  // Включаем/выключаем микрофон
+  const toggleMicMute = () => {
+    if (!localStream) return;
+    localStream.getAudioTracks().forEach(track => {
+      track.enabled = micMuted; // если сейчас muted=true, включаем, иначе — выключаем
+    });
+    setMicMuted(!micMuted);
+  };
+
   return (
     <div className="video-chat-container">
       <div className="video-container">
         <div>
           <h3>Ваше видео</h3>
-          <video className="local_video" ref={localVideoRef} autoPlay playsInline />
+          <video
+            className="local_video"
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+          />
         </div>
         <div>
           <h3>Видео собеседника</h3>
-          <video className="remote_video" ref={remoteVideoRef} autoPlay playsInline />
+          <video
+            className="remote_video"
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+          />
         </div>
       </div>
       {callStatus === "idle" ? (
@@ -203,6 +232,30 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           Завершить звонок
         </button>
       )}
+      <div className="video-controls">
+        {/* Громкость удалёнки ↓ */}
+        <button
+          className="btn vol-down"
+          onClick={() => changeRemoteVolume(-0.1)}
+        >
+          –  
+        </button>
+        <span className="vol-display">{Math.round(remoteVolume * 100)}%</span>
+        <button
+          className="btn vol-up"
+          onClick={() => changeRemoteVolume(+0.1)}
+        >
+          +
+        </button>
+
+        {/* Mute микрофона */}
+        <button
+          className={`btn mic-toggle ${micMuted ? 'muted' : ''}`}
+          onClick={toggleMicMute}
+        >
+          {micMuted ? 'Unmute Mic' : 'Mute Mic'}
+        </button>
+      </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
