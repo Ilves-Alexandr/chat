@@ -6,9 +6,13 @@ import { ReactComponent as PaperClipIcon } from "../assets/icons/paper-clip.svg"
 // import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
 // import { ReactComponent as SpeakerWaveIcon } from "../assets/icons/speaker-wave.svg";
 // import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-mark.svg";
-import { ReactComponent as SunIcon } from "../assets/icons/sun.svg";
-// import { ReactComponent as VideoCameraSlashIcon } from "../assets/icons/video-camera-slash.svg";
 // import { ReactComponent as VideoCameraIcon } from "../assets/icons/video-camera.svg";
+import { ReactComponent as SunIcon } from "../assets/icons/sun.svg";
+import { ReactComponent as TrashIcon } from "../assets/icons/trash.svg";
+import { ReactComponent as ArchiveBoxIcon } from "../assets/icons/archive-box.svg";
+
+
+// import { ReactComponent as VideoCameraSlashIcon } from "../assets/icons/video-camera-slash.svg";
 import * as openpgp from "openpgp";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -492,11 +496,11 @@ const Chat = () => {
         </label>
         <div className="acc">
           <button onClick={clearUserData} className="clear-btn btn">
-            Очистить данные аккаунта
+            <TrashIcon className="trash_icon"/>
           </button>
           {/* Кнопка для восстановления доступа к аккаунту (сброс clientId и ключей) */}
           <button onClick={recoverAccount} className="recovery-btn btn">
-            Восстановить аккаунт
+            <ArchiveBoxIcon className="archive-box_icon" />
           </button>
         </div>
       </div>
@@ -580,9 +584,7 @@ const Chat = () => {
             className="text_input input"
             id="text_input"
           />
-        </div>
-        <div className="bottom_group-item">
-          {chatType === "private" && (
+         {chatType === "private" && (
             <div className="file_container">
               {/* Привязанная к input type="file" иконка */}
               <label htmlFor="fileInput" className="file_label">
@@ -596,6 +598,8 @@ const Chat = () => {
               </label>
             </div>
           )}
+        </div>
+        <div className="bottom_group-item">
           <div className="text_btn-container">
             {/* Одна общая кнопка отправки */}
             <button

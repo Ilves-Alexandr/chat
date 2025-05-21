@@ -1,17 +1,25 @@
 {
   "files": {
-    "main.css": "/static/css/main.fb8e54dc.css",
-    "main.js": "/static/js/main.3f31a775.js",
+    "main.css": "/static/css/main.694bc7d4.css",
+    "main.js": "/static/js/main.e1f952fd.js",
     "index.html": "/index.html",
+    "static/media/trash.svg": "/static/media/trash.2cb7d59e1280fe42cf1e129103729e9d.svg",
+    "static/media/phone-x-mark.svg": "/static/media/phone-x-mark.79f58aa46aa08ea09c1458992d38c9a0.svg",
+    "static/media/phone.svg": "/static/media/phone.3d8f609de57f77e6d67d639a5a6ccc32.svg",
+    "static/media/speaker-wave.svg": "/static/media/speaker-wave.c46f750af6fc45ab544b4182c96a9b01.svg",
+    "static/media/speaker-x-mark.svg": "/static/media/speaker-x-mark.d7b1ee282853e28154bf6fe7542af5f2.svg",
+    "static/media/archive-box.svg": "/static/media/archive-box.84f669c41314b27a415c10a1c7e27851.svg",
     "static/media/sun.svg": "/static/media/sun.f69307a177979986c9ea93899fcac15a.svg",
     "static/media/moon.svg": "/static/media/moon.6e1709f9b3665283da4209dc8f5eecda.svg",
     "static/media/paper-clip.svg": "/static/media/paper-clip.42b88eb07a5586ee1262aa624cb741da.svg",
     "static/media/paper-airplane.svg": "/static/media/paper-airplane.f6c14ab05f12b04dbaf789799026cfb5.svg",
-    "main.fb8e54dc.css.map": "/static/css/main.fb8e54dc.css.map",
-    "main.3f31a775.js.map": "/static/js/main.3f31a775.js.map"
+    "static/media/plus.svg": "/static/media/plus.0c654e5eb709c5332529a59a669c95f5.svg",
+    "static/media/minus.svg": "/static/media/minus.b941bde5cdfd1c39e7fe02f82b7e1b8c.svg",
+    "main.694bc7d4.css.map": "/static/css/main.694bc7d4.css.map",
+    "main.e1f952fd.js.map": "/static/js/main.e1f952fd.js.map"
   },
   "entrypoints": [
-    "static/css/main.fb8e54dc.css",
-    "static/js/main.3f31a775.js"
+    "static/css/main.694bc7d4.css",
+    "static/js/main.e1f952fd.js"
   ]
 }

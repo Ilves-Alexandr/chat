@@ -2,13 +2,27 @@
 display: grid;
 grid-template-columns: 1fr;
 text-align: center;
+place-items: center;
 
 }
 
+.video_btn {
+  width: 6vw;
+  border-radius: 50%;
+}
+
 .video-controls{
+  width: 30vw;
   display: grid;
   grid-template-columns: auto auto auto auto;
+  place-items: center;
+  /* justify-content: center; */
+}
 
+.video-controls .btn {
+  width: 6vw;
+  background: transparent;
+  border: none;
 }
 
 .incoming-call-banner {
@@ -22,13 +36,56 @@ grid-template-columns: auto auto;
 
 .local_video,
 .remote_video {
-    width: 45vw;
+    width: 40vw;
     border: 1px solid #222;
     margin-bottom: 5vh;
 }
 
+.phone-icon {
+  width: 3vh;
+  fill: transparent;
+  stroke: #222;
+  text-align: center;
+  align-items: center;
+}
 
+.phone-icon,
+.phone-x-mark_icon,
+.minus-icon,
+.plus-icon,
+.speaker-wave_icon,
+.speaker-x-mark_icon {
+  width: 3vh;
+  fill: transparent;
+  stroke: #222;
+  text-align: center;
+  align-items: center;
+}
+
+button:hover .phone-icon,
+button:hover .phone-x-mark_icon {
+stroke: #FFF;
+}
 body.dark-mode .video-chat-container {
   background: #222;
   color: #eee;
 }
+
+body.dark-mode .phone-icon,
+body.dark-mode .phone-x-mark_icon,
+body.dark-mode .minus-icon,
+body.dark-mode .plus-icon,
+body.dark-mode .speaker-wave_icon,
+body.dark-mode .speaker-x-mark_icon {
+  stroke: #fff;
+}
+
+body.dark-mode button:hover .phone-icon,
+body.dark-mode button:hover .phone-x-mark_icon,
+body.dark-mode button:hover .minus-icon,
+body.dark-mode button:hover .plus-icon,
+body.dark-mode button:hover .speaker-wave_icon,
+body.dark-mode button:hover .speaker-x-mark_icon {
+  stroke: #222;
+}
+

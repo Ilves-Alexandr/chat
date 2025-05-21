@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./VideoChat.css";
+import { ReactComponent as PlusIcon } from "../assets/icons/plus.svg";
+import { ReactComponent as MinusIcon } from "../assets/icons/minus.svg";
+import { ReactComponent as SpeakerWaveIcon } from "../assets/icons/speaker-wave.svg";
+import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-mark.svg";
+import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
+import { ReactComponent as PhoneXMarkIcon } from "../assets/icons/phone-x-mark.svg";
+
+
 
 const iceConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -225,11 +233,11 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       </div>
       {callStatus === "idle" ? (
         <button className="video_btn btn" onClick={startCall}>
-          Начать звонок
+          <PhoneIcon className="phone-icon" />
         </button>
       ) : (
         <button className="video_btn btn" onClick={endCall}>
-          Завершить звонок
+          <PhoneXMarkIcon className="phone-x-mark_icon" />
         </button>
       )}
       <div className="video-controls">
@@ -238,14 +246,14 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           className="btn vol-down"
           onClick={() => changeRemoteVolume(-0.1)}
         >
-          –  
+          <MinusIcon className="minus-icon" />
         </button>
         <span className="vol-display">{Math.round(remoteVolume * 100)}%</span>
         <button
           className="btn vol-up"
           onClick={() => changeRemoteVolume(+0.1)}
         >
-          +
+          <PlusIcon className="plus-icon" />
         </button>
 
         {/* Mute микрофона */}
@@ -253,7 +261,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           className={`btn mic-toggle ${micMuted ? 'muted' : ''}`}
           onClick={toggleMicMute}
         >
-          {micMuted ? 'Unmute Mic' : 'Mute Mic'}
+          {micMuted ? <SpeakerWaveIcon className="speaker-wave_icon" /> : <SpeakerXMarkIcon className="speaker-x-mark_icon" />}
         </button>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
