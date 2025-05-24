@@ -27,7 +27,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const incomingIceBuffer = useRef([]);
 
   // ============ сигналинг ============
-    useEffect(() => {
+  useEffect(() => {
     if (!ws) return;
 
     const onMessage = async (e) => {
@@ -186,6 +186,14 @@ export default function VideoChat({ ws, clientId, recipientId }) {
 
   return (
     <div className="video-chat-container">
+      {/* баннер входящего звонка */}
+      {incomingOffer && callStatus === "idle" && (
+        <div className="incoming-call">
+          <p>Входящий звонок</p>
+          <button onClick={acceptCall}>Принять</button>
+          <button onClick={rejectCall}>Отклонить</button>
+        </div>
+      )}
       <div className="video-container">
         <div>
           <h3>Ваше видео</h3>
@@ -194,6 +202,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
             ref={localVideoRef}
             autoPlay
             playsInline
+            muted-
           />
         </div>
         <div>
