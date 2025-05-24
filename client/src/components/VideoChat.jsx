@@ -17,6 +17,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, in_call
+  const [incomingOffer, setIncomingOffer] = useState(null);
   const [remoteVolume, setRemoteVolume] = useState(1); // 0…1
   const [micMuted, setMicMuted] = useState(false);
 
@@ -26,163 +27,137 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   const incomingIceBuffer = useRef([]);
 
   // ============ сигналинг ============
-  useEffect(() => {
+    useEffect(() => {
     if (!ws) return;
 
     const onMessage = async (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type !== "video_signal") return;
+
+      // если это входящий оффер и мы свободны — сохраняем и ждём действия пользователя
+      if (msg.signalType === "video_offer" && callStatus === "idle") {
+        setIncomingOffer(msg.offer);
+        return;
+      }
+
+      // иначе обрабатываем ответ или айс
       const pc = pcRef.current;
+      if (msg.signalType === "video_answer" && pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        setCallStatus("in_call");
+      } else if (msg.signalType === "ice_candidate" && pc) {
+        if (pc.remoteDescription && pc.remoteDescription.type) {
+          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        } else {
+          incomingIceBuffer.current.push(msg.candidate);
+        }
+      }
+    };
 
-      // OFFER
-      if (msg.signalType === "video_offer") {
-        const pc = new RTCPeerConnection(iceConfig);
-        pcRef.current = pc;
-        incomingIceBuffer.current = [];
+    ws.addEventListener("message", onMessage);
+    return () => ws.removeEventListener("message", onMessage);
+  }, [ws, callStatus]);
 
-        // получаем локалку
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        setLocalStream(stream);
-        const videoOnly = new MediaStream(stream.getVideoTracks());
-        localVideoRef.current.srcObject = videoOnly;
-        stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+  // Общая логика для установления соединения (используется и при принятии, и при инициации)
+  const setupConnection = useCallback(
+    async (isInitiator, remoteOffer = null) => {
+      const pc = new RTCPeerConnection(iceConfig);
+      pcRef.current = pc;
+      incomingIceBuffer.current = [];
 
-        // слушаем свои ICE
-        pc.onicecandidate = (e) => {
-          if (e.candidate) {
-            ws.send(
-              JSON.stringify({
-                type: "video_signal",
-                signalType: "ice_candidate",
-                candidate: e.candidate,
-                clientId,
-                recipientId,
-              })
-            );
-          }
-        };
+      // Получаем локалку
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setLocalStream(stream);
+      // Не выводим локальный звук в плеер
+      const videoOnly = new MediaStream(stream.getVideoTracks());
+      localVideoRef.current.srcObject = videoOnly;
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
-        // принимаем чужие ICE (до и после setRemoteDescription)
-        document.addEventListener("videoSignal", async (ev) => {
-          const d = ev.detail;
-          if (d.signalType === "ice_candidate") {
-            if (pc.remoteDescription && pc.remoteDescription.type) {
-              await pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-            } else {
-              incomingIceBuffer.current.push(d.candidate);
-            }
-          }
-        });
+      // ICE candidate
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          ws.send(
+            JSON.stringify({
+              type: "video_signal",
+              signalType: "ice_candidate",
+              candidate: e.candidate,
+              clientId,
+              recipientId,
+            })
+          );
+        }
+      };
 
-        // ontrack для отображения удалёнки
-        pc.ontrack = (e) => {
-          const [s] = e.streams;
-          setRemoteStream(s);
-          remoteVideoRef.current.srcObject = s;
-        };
+      // ontrack для удалёнки
+      pc.ontrack = (e) => {
+        const [s] = e.streams;
+        setRemoteStream(s);
+        remoteVideoRef.current.srcObject = s;
+      };
 
-        // ставим удалённый оффер
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
-        // вываливаем накопленные ICE
+      if (isInitiator) {
+        // Инициируем звонок
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(
+          JSON.stringify({
+            type: "video_signal",
+            signalType: "video_offer",
+            offer: offer,
+            clientId,
+            recipientId,
+          })
+        );
+        setCallStatus("calling");
+      } else if (remoteOffer) {
+        // Принимаем звонок
+        await pc.setRemoteDescription(new RTCSessionDescription(remoteOffer));
+        // добавляем накопленные кандидаты
         for (const c of incomingIceBuffer.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
         }
         incomingIceBuffer.current = [];
 
-        // отвечаем
+        // Отвечаем
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         ws.send(
           JSON.stringify({
             type: "video_signal",
             signalType: "video_answer",
-            answer: pc.localDescription,
+            answer: answer,
             clientId,
             recipientId,
           })
         );
         setCallStatus("in_call");
-        return;
       }
+    },
+    [ws, clientId, recipientId]
+  );
 
-      // ANSWER
-      if (msg.signalType === "video_answer" && pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
-        setCallStatus("in_call");
-        return;
-      }
+  // Кнопка «Принять» (для баннера входящего звонка)
+  const acceptCall = () => {
+    if (incomingOffer) {
+      setupConnection(false, incomingOffer);
+      setIncomingOffer(null);
+    }
+  };
 
-      // ICE
-      if (msg.signalType === "ice_candidate" && pc) {
-        if (pc.remoteDescription && pc.remoteDescription.type) {
-          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-        } else {
-          incomingIceBuffer.current.push(msg.candidate);
-        }
-        return;
-      }
-    };
+  // Кнопка «Отклонить»
+  const rejectCall = () => {
+    setIncomingOffer(null);
+  };
 
-    ws.addEventListener("message", onMessage);
-    return () => ws.removeEventListener("message", onMessage);
-  }, [ws, clientId, recipientId]);
+  // Инициировать звонок
+  const startCall = useCallback(() => {
+    setupConnection(true);
+  }, [setupConnection]);
 
-  // ============ инициатор ============
-  const startCall = useCallback(async () => {
-    const pc = new RTCPeerConnection(iceConfig);
-    pcRef.current = pc;
-    incomingIceBuffer.current = [];
-
-    // локалка
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-    setLocalStream(stream);
-    const videoOnly = new MediaStream(stream.getVideoTracks());
-    localVideoRef.current.srcObject = videoOnly;
-    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-
-    // ontrack для удалёнки
-    pc.ontrack = (e) => {
-      const [s] = e.streams;
-      setRemoteStream(s);
-      remoteVideoRef.current.srcObject = s;
-    };
-
-    // свои ICE
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        ws.send(
-          JSON.stringify({
-            type: "video_signal",
-            signalType: "ice_candidate",
-            candidate: e.candidate,
-            clientId,
-            recipientId,
-          })
-        );
-      }
-    };
-
-    // создаём оффер и отправляем
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(
-      JSON.stringify({
-        type: "video_signal",
-        signalType: "video_offer",
-        offer: pc.localDescription,
-        clientId,
-        recipientId,
-      })
-    );
-    setCallStatus("calling");
-  }, [ws, clientId, recipientId]);
-
+  // Завершить звонок
   const endCall = () => {
     pcRef.current?.close();
     localStream?.getTracks().forEach((t) => t.stop());

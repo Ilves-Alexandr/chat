@@ -5,6 +5,7 @@
 }
 
 body {
+    min-height: 100vh;
     font: 1.2rem "Comic Sans MS", 'Comic Sans';
     background: #fff;
     color: #222;
@@ -31,4 +32,8 @@ label {
 button:hover {
     color: #fff;
     background: #222;
+}
+
+#root {
+    padding: 0 1vw;
 }
