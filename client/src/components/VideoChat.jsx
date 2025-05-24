@@ -9,8 +9,6 @@ import { ReactComponent as SpeakerXMarkIcon } from "../assets/icons/speaker-x-ma
 import { ReactComponent as PhoneIcon } from "../assets/icons/phone.svg";
 import { ReactComponent as PhoneXMarkIcon } from "../assets/icons/phone-x-mark.svg";
 
-
-
 const iceConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -48,7 +46,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           audio: true,
         });
         setLocalStream(stream);
-        localVideoRef.current.srcObject = stream;
+        const videoOnly = new MediaStream(stream.getVideoTracks());
+        localVideoRef.current.srcObject = videoOnly;
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
         // слушаем свои ICE
@@ -143,7 +142,8 @@ export default function VideoChat({ ws, clientId, recipientId }) {
       audio: true,
     });
     setLocalStream(stream);
-    localVideoRef.current.srcObject = stream;
+    const videoOnly = new MediaStream(stream.getVideoTracks());
+    localVideoRef.current.srcObject = videoOnly;
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
     // ontrack для удалёнки
@@ -192,7 +192,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
     setCallStatus("idle");
   };
 
-   const changeRemoteVolume = (delta) => {
+  const changeRemoteVolume = (delta) => {
     if (!remoteVideoRef.current) return;
     let v = remoteVideoRef.current.volume + delta;
     v = Math.min(1, Math.max(0, v));
@@ -203,7 +203,7 @@ export default function VideoChat({ ws, clientId, recipientId }) {
   // Включаем/выключаем микрофон
   const toggleMicMute = () => {
     if (!localStream) return;
-    localStream.getAudioTracks().forEach(track => {
+    localStream.getAudioTracks().forEach((track) => {
       track.enabled = micMuted; // если сейчас muted=true, включаем, иначе — выключаем
     });
     setMicMuted(!micMuted);
@@ -249,19 +249,20 @@ export default function VideoChat({ ws, clientId, recipientId }) {
           <MinusIcon className="minus-icon" />
         </button>
         <span className="vol-display">{Math.round(remoteVolume * 100)}%</span>
-        <button
-          className="btn vol-up"
-          onClick={() => changeRemoteVolume(+0.1)}
-        >
+        <button className="btn vol-up" onClick={() => changeRemoteVolume(+0.1)}>
           <PlusIcon className="plus-icon" />
         </button>
 
         {/* Mute микрофона */}
         <button
-          className={`btn mic-toggle ${micMuted ? 'muted' : ''}`}
+          className={`btn mic-toggle ${micMuted ? "muted" : ""}`}
           onClick={toggleMicMute}
         >
-          {micMuted ? <SpeakerWaveIcon className="speaker-wave_icon" /> : <SpeakerXMarkIcon className="speaker-x-mark_icon" />}
+          {micMuted ? (
+            <SpeakerWaveIcon className="speaker-wave_icon" />
+          ) : (
+            <SpeakerXMarkIcon className="speaker-x-mark_icon" />
+          )}
         </button>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} />
